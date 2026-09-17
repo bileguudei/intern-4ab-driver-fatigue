@@ -3,11 +3,14 @@
   "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260917.1",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^7"
+    "@types/bun": "latest",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.133.0"
   }
 }
