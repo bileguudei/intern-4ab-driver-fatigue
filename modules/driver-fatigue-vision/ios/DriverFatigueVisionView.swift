@@ -91,6 +91,7 @@ final class DriverFatigueVisionView: ExpoView,
         code: "camera_permission_missing",
         message: "Camera permission must be granted before monitoring starts."
       )
+      emitStatus("stopped")
       return
     }
 

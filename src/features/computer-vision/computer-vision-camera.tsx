@@ -3,6 +3,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 
 import DriverFatigueVision, {
   DriverFatigueVisionView,
+  isDriverFatigueVisionAvailable,
   type CameraPermissionStatus,
   type DriverFatigueVisionViewProps,
   type NativeFrameResult,
@@ -22,7 +23,13 @@ export type ComputerVisionCameraProps = Omit<
   onStatusChange?: (status: VisionStatus) => void;
 };
 
+export { isDriverFatigueVisionAvailable };
+
 export async function getComputerVisionCameraPermissionStatus(): Promise<CameraPermissionStatus> {
+  if (!isDriverFatigueVisionAvailable) {
+    return 'denied';
+  }
+
   if (Platform.OS === 'android') {
     return (await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA))
       ? 'granted'
@@ -30,20 +37,24 @@ export async function getComputerVisionCameraPermissionStatus(): Promise<CameraP
   }
 
   if (Platform.OS === 'ios') {
-    return DriverFatigueVision.getCameraPermissionStatus();
+    return DriverFatigueVision?.getCameraPermissionStatus() ?? 'denied';
   }
 
   return 'denied';
 }
 
 export async function requestComputerVisionCameraPermission(): Promise<CameraPermissionStatus> {
+  if (!isDriverFatigueVisionAvailable) {
+    return 'denied';
+  }
+
   if (Platform.OS === 'android') {
     const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
     return result === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
   }
 
   if (Platform.OS === 'ios') {
-    return DriverFatigueVision.requestCameraPermission();
+    return DriverFatigueVision?.requestCameraPermission() ?? 'denied';
   }
 
   return 'denied';
