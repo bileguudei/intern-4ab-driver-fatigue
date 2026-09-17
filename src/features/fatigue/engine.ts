@@ -91,6 +91,7 @@ export function createFatigueEngine({
     /** Жолоочоос шулуун харж, хэвийн анивчихыг хүсээд дуудна. */
     startCalibration() {
       samples = [];
+      events.length = 0; // өмнөх аяллын явдал шинэ аяллын дүнд орохгүй
       eyes = createEyeTracker();
       head = createHeadTracker();
       session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
@@ -100,12 +101,17 @@ export function createFatigueEngine({
     /** Жолоодлого дуусгах — UI-ийн SessionSummary хэлбэрээр. */
     finish() {
       const count = (type: FatigueEvent['type']) => events.filter((e) => e.type === type).length;
+      const at = (type: FatigueEvent['type']) => events.filter((e) => e.type === type).map((e) => e.occurredAt);
+      const resumes = at('camera_resumed');
+      const unmonitoredMs = at('camera_stopped').reduce((sum, stop, i) => sum + (resumes[i] ?? now()) - stop, 0);
       return {
         durationSeconds: Math.round((now() - session.startedAt) / 1000),
         warningCount: count('fatigue_warning'),
         criticalCount: count('fatigue_critical'),
         maxScore: session.maxScore,
         avgScore: session.scoreCount > 0 ? Math.round(session.scoreSum / session.scoreCount) : 0,
+        /** Апп ард гарч камер зогссон нийт хугацаа. */
+        unmonitoredSeconds: Math.round(unmonitoredMs / 1000),
       };
     },
 
