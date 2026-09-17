@@ -1,14 +1,20 @@
 import type { ComputerVisionObservation, VisionStatus } from '@/features/computer-vision';
 
 import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
+import { createEyeTracker } from './eyes';
+import { createHeadTracker } from './head';
+import { computeScore, type FatigueLevel, nextLevel } from './score';
 
-export type FatigueLevel = 'normal' | 'warning' | 'critical';
+export type { FatigueLevel };
+
+/** Толгой ийм их бөхийсөн үед eyeBlink найдваргүй (хэмжилт) — анилтыг тоолохгүй. */
+const HEAD_DOWN_IGNORE_EYES_DEG = 15;
 
 export type FatigueEvent = Readonly<{
   id: string;
   /** Unix мс — серверт хадгалагдана. */
   occurredAt: number;
-  type: 'camera_stopped' | 'camera_resumed';
+  type: 'camera_stopped' | 'camera_resumed' | 'fatigue_warning' | 'fatigue_critical';
 }>;
 
 export type FatigueEngineState = Readonly<{
@@ -40,6 +46,9 @@ export function createFatigueEngine({
     level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', baseline: null,
   };
   let samples: ComputerVisionObservation[] = [];
+  let eyes = createEyeTracker();
+  let head = createHeadTracker();
+  let session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
 
   const update = (next: Partial<FatigueEngineState>) => {
     state = { ...state, ...next };
@@ -50,10 +59,23 @@ export function createFatigueEngine({
     events.push({ id: createId(), occurredAt: now(), type });
   };
 
+  const assess = (observation: ComputerVisionObservation, baseline: Baseline) => {
+    const headState = head.update(observation, baseline);
+    const eyeUpdate = eyes.update(observation, baseline);
+    const eyeState = headState.downDeg > HEAD_DOWN_IGNORE_EYES_DEG ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
+    const score = computeScore(eyeState, headState);
+    const level = nextLevel(state.level, score, eyeState, headState);
+    session = { ...session, scoreSum: session.scoreSum + score, scoreCount: session.scoreCount + 1, maxScore: Math.max(session.maxScore, score) };
+    const escalated = level !== state.level && level !== 'normal';
+    if (escalated) record(level === 'critical' ? 'fatigue_critical' : 'fatigue_warning');
+    update({ score, level });
+  };
+
   return {
     accept(observation: ComputerVisionObservation) {
       const monitoring = state.cameraStatus === 'running' && observation.faceDetected;
       if (monitoring !== state.monitoring) update({ monitoring });
+      if (state.calibration === 'done' && state.baseline !== null) assess(observation, state.baseline);
       if (state.calibration !== 'running') return;
 
       samples.push(observation);
@@ -67,7 +89,22 @@ export function createFatigueEngine({
     /** Жолоочоос шулуун харж, хэвийн анивчихыг хүсээд дуудна. */
     startCalibration() {
       samples = [];
-      update({ calibration: 'running', baseline: null });
+      eyes = createEyeTracker();
+      head = createHeadTracker();
+      session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
+      update({ calibration: 'running', baseline: null, level: 'normal', score: 0 });
+    },
+
+    /** Жолоодлого дуусгах — UI-ийн SessionSummary хэлбэрээр. */
+    finish() {
+      const count = (type: FatigueEvent['type']) => events.filter((e) => e.type === type).length;
+      return {
+        durationSeconds: Math.round((now() - session.startedAt) / 1000),
+        warningCount: count('fatigue_warning'),
+        criticalCount: count('fatigue_critical'),
+        maxScore: session.maxScore,
+        avgScore: session.scoreCount > 0 ? Math.round(session.scoreSum / session.scoreCount) : 0,
+      };
     },
 
     /**

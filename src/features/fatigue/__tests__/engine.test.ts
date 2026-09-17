@@ -80,4 +80,16 @@ describe('createFatigueEngine', () => {
     for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(false, t));
     expect(engine.getState().calibration).toBe('failed');
   });
+
+  it('калибрацийн дараа 2 сек аньсан бол critical болж, дүнд тоологдоно', () => {
+    const { engine, tick } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+    for (let t = 10_050; t <= 12_100; t += 50) engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8 });
+    tick(12_000);
+    expect(engine.getState().level).toBe('critical');
+    // Оноо өсөхдөө эхлээд warning-оор дамжина
+    expect(engine.finish()).toMatchObject({ durationSeconds: 12, criticalCount: 1, warningCount: 1 });
+  });
 });
