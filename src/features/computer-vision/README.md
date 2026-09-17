@@ -28,6 +28,17 @@ MediaPipe does not return a valid facial transformation matrix. Missing values m
 never be interpreted as zero by consumers. `faceConfidence` is currently null
 because MediaPipe Face Landmarker does not expose a per-result detection score.
 
+## Verified sign conventions
+
+Checked on an iPhone 13 Pro with `ComputerVisionDebugScreen`:
+
+- `headPose.pitch` is positive when the driver looks **down**.
+- `leftEar` / `leftBlink` belong to the driver's **own left** eye (the mirroring is already handled).
+- `jawOpen` rises above 0.5 with the mouth wide open.
+
+`timestampMs` is a monotonic device clock (iOS `systemUptime`, Android `uptimeMillis`), not Unix
+time. Use it only for durations; stamp persisted events with `Date.now()`.
+
 ## Native adapter requirements
 
 - Use the front camera and MediaPipe Face Landmarker in live-stream mode.
