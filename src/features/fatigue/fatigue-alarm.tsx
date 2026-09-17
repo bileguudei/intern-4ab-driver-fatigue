@@ -22,8 +22,8 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
     // duckOthers — YouTube, хөгжмийг зогсоохгүй, дохионы үед намсгана.
     // playsInSilentMode — iPhone-ийн дуугүй товч асаалттай ч дуугарна.
     setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'duckOthers', shouldPlayInBackground: true });
-    const warning = createAudioPlayer(require('@/assets/sounds/fatigue-warning.wav'));
-    const critical = createAudioPlayer(require('@/assets/sounds/fatigue-critical.wav'));
+    const warning = createAudioPlayer(require('@assets/sounds/fatigue-warning.wav'));
+    const critical = createAudioPlayer(require('@assets/sounds/fatigue-critical.wav'));
     critical.loop = true;
     let criticalOn = false;
 
