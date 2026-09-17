@@ -41,3 +41,13 @@ example
 # generated native folders
 /ios
 /android
+
+# local Expo module native build output
+modules/*/android/build/
+modules/*/android/.cxx/
+modules/*/ios/build/
+
+# Local-only Computer Vision device harness. Adding a file under src/app/ registers
+# a route in the shared tab navigator, so this stays out of the shared history.
+# The screen itself lives in src/features/computer-vision/ and is committed.
+/src/app/cv-debug.tsx
