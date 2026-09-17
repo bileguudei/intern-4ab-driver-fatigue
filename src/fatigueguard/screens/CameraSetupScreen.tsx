@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import {
   ComputerVisionCamera,
   getComputerVisionCameraPermissionStatus,
-  isDriverFatigueVisionAvailable,
   requestComputerVisionCameraPermission,
   type CameraPermissionStatus,
   type ComputerVisionObservation,

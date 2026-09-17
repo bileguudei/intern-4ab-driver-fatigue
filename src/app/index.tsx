@@ -24,7 +24,7 @@ export default function GuardApp() {
   // Калибраци, жолоодлогын турш нэг engine, нэг камер. Камерыг дэлгэц бүрт
   // тусад нь байрлуулбал солигдох бүрд ~1 сек унтарч, калибраци тасарна.
   const engine = useMemo(() => createFatigueEngine(), []);
-  const monitoring = route.kind === 'flow' && (route.screen === 'calibration' || route.screen === 'driving');
+  const monitoring = route.kind === 'flow' && route.screen === 'calibration';
   const keepAwake = route.kind === 'flow' && route.screen !== 'summary';
   const showTab = (tab: TabName) => setRoute({ kind: 'tabs', tab });
   const showFlow = (screen: 'camera' | 'calibration' | 'driving' | 'summary') => setRoute({ kind: 'flow', screen });
