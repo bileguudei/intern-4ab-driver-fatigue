@@ -1,98 +1,31 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomNav } from '@/fatigueguard/components/BottomNav';
+import { CalibrationScreen } from '@/fatigueguard/screens/CalibrationScreen';
+import { CameraSetupScreen } from '@/fatigueguard/screens/CameraSetupScreen';
+import { DrivingScreen } from '@/fatigueguard/screens/DrivingScreen';
+import { HistoryScreen } from '@/fatigueguard/screens/HistoryScreen';
+import { HomeScreen } from '@/fatigueguard/screens/HomeScreen';
+import { SessionSummaryScreen } from '@/fatigueguard/screens/SessionSummaryScreen';
+import { SettingsScreen } from '@/fatigueguard/screens/SettingsScreen';
+import { colors } from '@/fatigueguard/theme';
+import type { Route, SessionSummary, TabName } from '@/fatigueguard/types';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+const emptySummary: SessionSummary = { durationSeconds: 0, warningCount: 0, criticalCount: 0, maxScore: 24, avgScore: 24 };
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
+export default function GuardApp() {
+  const [route, setRoute] = useState<Route>({ kind: 'tabs', tab: 'home' });
+  const [summary, setSummary] = useState<SessionSummary>(emptySummary);
+  const showTab = (tab: TabName) => setRoute({ kind: 'tabs', tab });
+  const showFlow = (screen: 'camera' | 'calibration' | 'driving' | 'summary') => setRoute({ kind: 'flow', screen });
+  let screen: React.ReactNode;
+  if (route.kind === 'tabs') screen = route.tab === 'home' ? <HomeScreen onStart={() => showFlow('camera')} /> : route.tab === 'history' ? <HistoryScreen /> : <SettingsScreen />;
+  else if (route.screen === 'camera') screen = <CameraSetupScreen onBack={() => showTab('home')} onContinue={() => showFlow('calibration')} />;
+  else if (route.screen === 'calibration') screen = <CalibrationScreen onBack={() => showFlow('camera')} onComplete={() => showFlow('driving')} />;
+  else if (route.screen === 'driving') screen = <DrivingScreen onFinish={(data) => { setSummary(data); showFlow('summary'); }} />;
+  else screen = <SessionSummaryScreen data={summary} onHome={() => showTab('home')} />;
+  return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content" backgroundColor={colors.background} /><View style={styles.app}>{screen}{route.kind === 'tabs' ? <BottomNav active={route.tab} onChange={showTab} /> : null}</View></SafeAreaView>;
 }
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-});
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.background }, app: { flex: 1, backgroundColor: colors.background } });
