@@ -1,0 +1,199 @@
+{"kind":"deck","id":"pr/ddrzdu","name":"Deck"}
+{"kind":"layout","layoutId":"85e819a9-e9fb-4bef-b873-b6f321edcbec","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"078ffc7f-244a-48bd-bf47-a859dc10efae","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/61s5cq","slide":1,"title":"FATIGUE","textShapes":4}
+{"kind":"shape","id":"sh/at47ad0b","slide":1,"bbox":[0,0,730,720]}
+{"kind":"shape","id":"sh/bud83y1w","slide":1,"bbox":[0,0,1280,720]}
+{"kind":"textbox","id":"sh/kjmpgnit","slide":1,"text":"FATIGUE\nGUARD","textPreview":"FATIGUE | GUARD","textChars":13,"textLines":2,"bbox":[80,112,540,160]}
+{"kind":"textbox","id":"sh/lkvq9sjy","slide":1,"text":"Жолоочийн ядаргаа илрүүлэх ухаалаг систем","textPreview":"Жолоочийн ядаргаа илрүүлэх ухаалаг систем","textChars":41,"textLines":1,"bbox":[84,300,500,58]}
+{"kind":"textbox","id":"sh/yh47ed0n","slide":1,"text":"Computer Vision + RAG + Mobile App","textPreview":"Computer Vision + RAG + Mobile App","textChars":34,"textLines":1,"bbox":[84,380,420,32]}
+{"kind":"shape","id":"sh/jid87i18","slide":1,"bbox":[84,470,280,2]}
+{"kind":"textbox","id":"sh/8n6pknip","slide":1,"text":"Багийн төслийн танилцуулга","textPreview":"Багийн төслийн танилцуулга","textChars":26,"textLines":1,"bbox":[84,494,330,26]}
+{"kind":"image","id":"im/8b6tsjql","slide":1,"name":"","alt":"AI-generated night driving cover illustration","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/61s5cq","slide":1,"text":"Cover visual created with OpenAI image generation. It is an illustrative, non-documentary image."}
+{"kind":"slide","id":"sl/w06y98","slide":2,"title":"Асуудал","textShapes":13}
+{"kind":"textbox","id":"sh/fa5gnmt4","slide":2,"text":"Асуудал","textPreview":"Асуудал","textChars":7,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/gvyxgra9","slide":2,"text":"Урт зам, шөнийн жолоодлого болон өвлийн нөхцөл ядаргааны эрсдэлийг нэмэгдүүлдэг","textPreview":"Урт зам, шөнийн жолоодлого болон өвлийн нөхцөл ядаргааны эрсдэлийг нэмэгдүүлдэг","textChars":79,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/1w7ypwbu","slide":2,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"textbox","id":"sh/2xgfi1sf","slide":2,"text":"Ядарсан жолоочийн анхаарал, хариу үйлдэл, шийдвэр гаргалт сулардаг.","textPreview":"Ядарсан жолоочийн анхаарал, хариу үйлдэл, шийдвэр гаргалт сулардаг.","textChars":67,"textLines":1,"bbox":[70,172,810,40]}
+{"kind":"shape","id":"sh/3ypgr6t0","slide":2,"bbox":[70,265,330,200]}
+{"kind":"shape","id":"sh/ozyxkbal","slide":2,"bbox":[88,285,5,160]}
+{"kind":"textbox","id":"sh/p07ytgb6","slide":2,"text":"Нүд анилт","textPreview":"Нүд анилт","textChars":9,"textLines":1,"bbox":[112,288,270,30]}
+{"kind":"textbox","id":"sh/q1gfmlsr","slide":2,"text":"Нүд удаан хаагдах болон PERCLOS өсөх нь нойрмоглолын дохио болно.","textPreview":"Нүд удаан хаагдах болон PERCLOS өсөх нь нойрмоглолын дохио болно.","textChars":65,"textLines":1,"bbox":[112,328,265,120]}
+{"kind":"shape","id":"sh/b29gv6tw","slide":2,"bbox":[445,265,330,200]}
+{"kind":"shape","id":"sh/3qdoj6po","slide":2,"bbox":[463,285,5,160]}
+{"kind":"textbox","id":"sh/2p4na183","slide":2,"text":"Толгой дохих","textPreview":"Толгой дохих","textChars":12,"textLines":1,"bbox":[487,288,270,30]}
+{"kind":"textbox","id":"sh/psv6lg7e","slide":2,"text":"Толгой давтамжтай доошлох нь анхаарал суларч байгааг илтгэнэ.","textPreview":"Толгой давтамжтай доошлох нь анхаарал суларч байгааг илтгэнэ.","textChars":61,"textLines":1,"bbox":[487,328,265,120]}
+{"kind":"shape","id":"sh/orm5cbqt","slide":2,"bbox":[820,265,330,200]}
+{"kind":"shape","id":"sh/fmtofmpc","slide":2,"bbox":[838,285,5,160]}
+{"kind":"textbox","id":"sh/ulkn618r","slide":2,"text":"Оройн цаг","textPreview":"Оройн цаг","textChars":9,"textLines":1,"bbox":[862,288,270,30]}
+{"kind":"textbox","id":"sh/1ov6hw7i","slide":2,"text":"Шөнийн урт замд жолооч ганцаараа, нэг хэвийн нөхцөлд удаан явдаг.","textPreview":"Шөнийн урт замд жолооч ганцаараа, нэг хэвийн нөхцөлд удаан явдаг.","textChars":65,"textLines":1,"bbox":[862,328,265,120]}
+{"kind":"textbox","id":"sh/gnm58rqx","slide":2,"text":"Зорилго: эрсдэлийн эхний шинжийг бодит цагт илрүүлж, аюулгүй зогсоож амрах шийдвэрт туслах.","textPreview":"Зорилго: эрсдэлийн эхний шинжийг бодит цагт илрүүлж, аюулгүй зогсоож амрах шийдвэрт туслах.","textChars":91,"textLines":1,"bbox":[70,530,1030,40]}
+{"kind":"shape","id":"sh/zixorqpg","slide":2,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/yho7il8b","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/adsrqpsj","slide":2,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/w06y98","slide":2,"text":"Background: NHTSA notes drowsy driving can impair performance and is especially associated with nighttime and rural-road driving. Source: https://www.nhtsa.gov/risky-driving/drowsy-driving"}
+{"kind":"slide","id":"sl/zlzhrd","slide":3,"title":"Шийдэл","textShapes":24}
+{"kind":"textbox","id":"sh/4fi5sz29","slide":3,"text":"Шийдэл","textPreview":"Шийдэл","textChars":6,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/3e9oje1o","slide":3,"text":"Dashboard дээр байрлуулсан ухаалаг утас жолоочийн төлөвийг хянана","textPreview":"Dashboard дээр байрлуулсан ухаалаг утас жолоочийн төлөвийг хянана","textChars":65,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/id0nq9kj","slide":3,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"textbox","id":"sh/hcr6h4jy","slide":3,"text":"Утасны урд камер","textPreview":"Утасны урд камер","textChars":16,"textLines":1,"bbox":[92,210,190,30]}
+{"kind":"shape","id":"sh/gbi5oz2d","slide":3,"bbox":[95,254,170,260]}
+{"kind":"shape","id":"sh/va94fu1s","slide":3,"bbox":[114,284,132,150]}
+{"kind":"textbox","id":"sh/u90nmpk7","slide":3,"text":"◉","textPreview":"◉","textChars":1,"textLines":1,"bbox":[142,310,75,70]}
+{"kind":"textbox","id":"sh/t8rmdkjm","slide":3,"text":"front camera","textPreview":"front camera","textChars":12,"textLines":1,"bbox":[110,455,140,25]}
+{"kind":"shape","id":"sh/87y5kf21","slide":3,"bbox":[360,276,170,180]}
+{"kind":"textbox","id":"sh/e987ehw3","slide":3,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[380,300,35,28]}
+{"kind":"textbox","id":"sh/fah87mdo","slide":3,"text":"Нүд","textPreview":"Нүд","textChars":3,"textLines":1,"bbox":[380,346,130,30]}
+{"kind":"textbox","id":"sh/gbqpgre9","slide":3,"text":"Нүд нээлттэй эсэх, PERCLOS","textPreview":"Нүд нээлттэй эсэх, PERCLOS","textChars":26,"textLines":1,"bbox":[380,390,130,48]}
+{"kind":"textbox","id":"sh/1czq9cvu","slide":3,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[537,340,24,40]}
+{"kind":"shape","id":"sh/65o7axwr","slide":3,"bbox":[565,276,170,180]}
+{"kind":"textbox","id":"sh/r6xo32dc","slide":3,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[585,300,35,28]}
+{"kind":"textbox","id":"sh/s76pc7ex","slide":3,"text":"Толгой","textPreview":"Толгой","textChars":6,"textLines":1,"bbox":[585,346,130,30]}
+{"kind":"textbox","id":"sh/t8z65cvi","slide":3,"text":"Pitch өөрчлөлт, дохилтын давтамж","textPreview":"Pitch өөрчлөлт, дохилтын давтамж","textChars":32,"textLines":1,"bbox":[585,390,130,48]}
+{"kind":"textbox","id":"sh/iho76xwv","slide":3,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[742,340,24,40]}
+{"kind":"shape","id":"sh/jixoz2xg","slide":3,"bbox":[770,276,170,180]}
+{"kind":"textbox","id":"sh/7mt47yt8","slide":3,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[790,300,35,28]}
+{"kind":"textbox","id":"sh/mlk3ytcn","slide":3,"text":"Score","textPreview":"Score","textChars":5,"textLines":1,"bbox":[790,346,130,30]}
+{"kind":"textbox","id":"sh/9obm9obe","slide":3,"text":"0–100 эрсдэлийн үнэлгээ","textPreview":"0–100 эрсдэлийн үнэлгээ","textChars":23,"textLines":1,"bbox":[790,390,130,48]}
+{"kind":"textbox","id":"sh/8n2503ut","slide":3,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[947,340,24,40]}
+{"kind":"shape","id":"sh/vqd4byt4","slide":3,"bbox":[975,276,170,180]}
+{"kind":"textbox","id":"sh/up4n2tcj","slide":3,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[995,300,35,28]}
+{"kind":"textbox","id":"sh/hcvmd8ba","slide":3,"text":"Alert","textPreview":"Alert","textChars":5,"textLines":1,"bbox":[995,346,130,30]}
+{"kind":"textbox","id":"sh/wbm543up","slide":3,"text":"Дохиолол, vibration, зөвлөгөө","textPreview":"Дохиолол, vibration, зөвлөгөө","textChars":29,"textLines":1,"bbox":[995,390,130,48]}
+{"kind":"textbox","id":"sh/bu94zed0","slide":3,"text":"Камерын raw видео default байдлаар сервер рүү илгээхгүй. Хувийн мэдээллийг төхөөрөмж дээр боловсруулах зарчим баримтална.","textPreview":"Камерын raw видео default байдлаар сервер рүү илгээхгүй. Хувийн мэдээллийг төхөөрөмж дээр боловсруулах зарчим баримтална.","textChars":121,"textLines":1,"bbox":[360,520,800,42]}
+{"kind":"shape","id":"sh/at03q9cf","slide":3,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/gne9kb61","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/honadgnm","slide":3,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/zlzhrd","slide":3,"text":"System design based on the project specification."}
+{"kind":"slide","id":"sl/oax8d6","slide":4,"title":"Системийн архитектур","textShapes":17}
+{"kind":"textbox","id":"sh/4vy5orqt","slide":4,"text":"Системийн архитектур","textPreview":"Системийн архитектур","textChars":20,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/3up4f698","slide":4,"text":"Real-time detection ба аюулгүй ажиллагааны зөвлөгөөг тусгаарласан урсгал","textPreview":"Real-time detection ба аюулгүй ажиллагааны зөвлөгөөг тусгаарласан урсгал","textChars":72,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/itgnm18n","slide":4,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"shape","id":"sh/hsnmdwr2","slide":4,"bbox":[120,172,1040,76]}
+{"kind":"shape","id":"sh/gre5krqx","slide":4,"bbox":[120,172,12,76]}
+{"kind":"textbox","id":"sh/vq54bm9c","slide":4,"text":"Mobile app","textPreview":"Mobile app","textChars":10,"textLines":1,"bbox":[165,189,265,28]}
+{"kind":"textbox","id":"sh/upwnih8r","slide":4,"text":"CameraView, setup, calibration, driving UI","textPreview":"CameraView, setup, calibration, driving UI","textChars":42,"textLines":1,"bbox":[470,191,600,28]}
+{"kind":"textbox","id":"sh/1or6pgrm","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[613,251,50,26]}
+{"kind":"shape","id":"sh/0ni5wbq1","slide":4,"bbox":[120,277,1040,76]}
+{"kind":"shape","id":"sh/u5k7mdwf","slide":4,"bbox":[120,277,12,76]}
+{"kind":"textbox","id":"sh/v6t8fid0","slide":4,"text":"Computer Vision","textPreview":"Computer Vision","textChars":15,"textLines":1,"bbox":[165,294,265,28]}
+{"kind":"textbox","id":"sh/w7mponel","slide":4,"text":"Face landmarks, нүд анилт, толгойн өнцөг","textPreview":"Face landmarks, нүд анилт, толгойн өнцөг","textChars":40,"textLines":1,"bbox":[470,296,600,28]}
+{"kind":"textbox","id":"sh/h8vqhsv6","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[613,356,50,26]}
+{"kind":"shape","id":"sh/m1k7idwj","slide":4,"bbox":[120,382,1040,76]}
+{"kind":"shape","id":"sh/72t8bid4","slide":4,"bbox":[120,382,12,76]}
+{"kind":"textbox","id":"sh/832pknep","slide":4,"text":"Fatigue engine","textPreview":"Fatigue engine","textChars":14,"textLines":1,"bbox":[165,399,265,28]}
+{"kind":"textbox","id":"sh/94bqd8vu","slide":4,"text":"PERCLOS, nods, score, risk level","textPreview":"PERCLOS, nods, score, risk level","textChars":32,"textLines":1,"bbox":[470,401,600,28]}
+{"kind":"textbox","id":"sh/6x4ruxwn","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[613,461,50,26]}
+{"kind":"shape","id":"sh/ryx8n2d8","slide":4,"bbox":[120,487,1040,76]}
+{"kind":"shape","id":"sh/365wzap8","slide":4,"bbox":[120,487,12,76]}
+{"kind":"textbox","id":"sh/25wvq583","slide":4,"text":"Safety response","textPreview":"Safety response","textChars":15,"textLines":1,"bbox":[165,504,265,28]}
+{"kind":"textbox","id":"sh/p8ne107e","slide":4,"text":"Siren, vibration, source-grounded advice","textPreview":"Siren, vibration, source-grounded advice","textChars":40,"textLines":1,"bbox":[470,506,600,28]}
+{"kind":"textbox","id":"sh/o7edsfqt","slide":4,"text":"RAG нь сэрэмжлүүлгийн үндсэн шийдвэрийг гаргахгүй. Эрсдэлийн ангилал тогтсоны дараа баталгаатай эх сурвалжаас зөвлөгөө сонгоно.","textPreview":"RAG нь сэрэмжлүүлгийн үндсэн шийдвэрийг гаргахгүй. Эрсдэлийн ангилал тогтсоны дараа баталгаатай эх сурвалжаас зөвлөгөө сонгоно.","textChars":127,"textLines":1,"bbox":[120,610,1020,35]}
+{"kind":"shape","id":"sh/bupw3apk","slide":4,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/qtwvu58z","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/dw7e5k7q","slide":4,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/oax8d6","slide":4,"text":"Architecture reflects project design. RAG safety constraint is a design decision."}
+{"kind":"slide","id":"sl/1doczs","slide":5,"title":"Mobile app flow","textShapes":25}
+{"kind":"textbox","id":"sh/a587mt0r","slide":5,"text":"Mobile app flow","textPreview":"Mobile app flow","textChars":15,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/x8z6hoji","slide":5,"text":"FatigueGuard UI нь жолоочийг камераа тохируулж, калибрац хийсний дараа monitoring screen рүү оруулна","textPreview":"FatigueGuard UI нь жолоочийг камераа тохируулж, калибрац хийсний дараа monitoring screen рүү оруулна","textChars":100,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/w7qpo3ix","slide":5,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"shape","id":"sh/nixobe1g","slide":5,"bbox":[70,215,185,250]}
+{"kind":"textbox","id":"sh/mho7i90v","slide":5,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[90,235,42,32]}
+{"kind":"textbox","id":"sh/94z6doj6","slide":5,"text":"Нүүр хуудас","textPreview":"Нүүр хуудас","textChars":11,"textLines":1,"bbox":[90,292,145,30]}
+{"kind":"textbox","id":"sh/oj6pkjil","slide":5,"text":"Жолоодлого эхлүүлэх","textPreview":"Жолоодлого эхлүүлэх","textChars":19,"textLines":1,"bbox":[90,338,145,56]}
+{"kind":"textbox","id":"sh/fexo7e14","slide":5,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[257,318,38,40]}
+{"kind":"shape","id":"sh/edo7e9kj","slide":5,"bbox":[305,215,185,250]}
+{"kind":"textbox","id":"sh/szu50nmp","slide":5,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[325,235,42,32]}
+{"kind":"textbox","id":"sh/t036tsna","slide":5,"text":"Camera setup","textPreview":"Camera setup","textChars":12,"textLines":1,"bbox":[325,292,145,30]}
+{"kind":"textbox","id":"sh/6xcnyx4j","slide":5,"text":"Нүүр, гэрэл, байрлал","textPreview":"Нүүр, гэрэл, байрлал","textChars":20,"textLines":1,"bbox":[325,338,145,56]}
+{"kind":"textbox","id":"sh/7ylori54","slide":5,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[492,318,38,40]}
+{"kind":"shape","id":"sh/kvu5wnmd","slide":5,"bbox":[540,215,185,250]}
+{"kind":"textbox","id":"sh/lw36psny","slide":5,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[560,235,42,32]}
+{"kind":"textbox","id":"sh/ytsnud4n","slide":5,"text":"Калибраци","textPreview":"Калибраци","textChars":9,"textLines":1,"bbox":[560,292,145,30]}
+{"kind":"textbox","id":"sh/juloni58","slide":5,"text":"Нүд ба толгойн baseline","textPreview":"Нүд ба толгойн baseline","textChars":23,"textLines":1,"bbox":[560,338,145,56]}
+{"kind":"textbox","id":"sh/4rep87mx","slide":5,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[727,318,38,40]}
+{"kind":"shape","id":"sh/psn61c3i","slide":5,"bbox":[775,215,185,250]}
+{"kind":"textbox","id":"sh/d836lcvm","slide":5,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[795,235,42,32]}
+{"kind":"textbox","id":"sh/c7a5c7e1","slide":5,"text":"Driving","textPreview":"Driving","textChars":7,"textLines":1,"bbox":[795,292,145,30]}
+{"kind":"textbox","id":"sh/b61oj2dg","slide":5,"text":"Score ба сэрэмжлүүлэг","textPreview":"Score ба сэрэмжлүүлэг","textChars":21,"textLines":1,"bbox":[795,338,145,56]}
+{"kind":"textbox","id":"sh/q5snaxwv","slide":5,"text":"›","textPreview":"›","textChars":1,"textLines":1,"bbox":[962,318,38,40]}
+{"kind":"shape","id":"sh/pkj6hsva","slide":5,"bbox":[1010,215,185,250]}
+{"kind":"textbox","id":"sh/oja587ep","slide":5,"text":"5","textPreview":"5","textChars":1,"textLines":1,"bbox":[1030,235,42,32]}
+{"kind":"textbox","id":"sh/3i1of2xk","slide":5,"text":"Summary","textPreview":"Summary","textChars":7,"textLines":1,"bbox":[1030,292,145,30]}
+{"kind":"textbox","id":"sh/2hsn6xwz","slide":5,"text":"Сессийн дүн ба AI зөвлөгөө","textPreview":"Сессийн дүн ба AI зөвлөгөө","textChars":26,"textLines":1,"bbox":[1030,338,145,56]}
+{"kind":"textbox","id":"sh/1gj6dsfe","slide":5,"text":"History, Settings, offline-data toggle болон alert volume control нь bottom navigation-аас ашиглагдана.","textPreview":"History, Settings, offline-data toggle болон alert volume control нь bottom navigation-аас ашиглагдана.","textChars":103,"textLines":1,"bbox":[70,535,1050,34]}
+{"kind":"shape","id":"sh/gfq54net","slide":5,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/6lo3etcr","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/7mxknytc","slide":5,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/1doczs","slide":5,"text":"Based on the FatigueGuard UI imported into the Expo project."}
+{"kind":"slide","id":"sl/k5y9ao","slide":6,"title":"Одоогийн хэрэгжилтийн төлөв","textShapes":10}
+{"kind":"textbox","id":"sh/gnq943yp","slide":6,"text":"Одоогийн хэрэгжилтийн төлөв","textPreview":"Одоогийн хэрэгжилтийн төлөв","textChars":27,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/vmxsbyh4","slide":6,"text":"UI prototype болон Computer Vision модулийг ялгаж ойлгох нь чухал","textPreview":"UI prototype болон Computer Vision модулийг ялгаж ойлгох нь чухал","textChars":65,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/ulor2tgj","slide":6,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"shape","id":"sh/tkfq9ozy","slide":6,"bbox":[80,185,500,310]}
+{"kind":"shape","id":"sh/8j690jyd","slide":6,"bbox":[98,205,5,270]}
+{"kind":"textbox","id":"sh/7ix87ehs","slide":6,"text":"Бэлэн болсон хэсэг","textPreview":"Бэлэн болсон хэсэг","textChars":18,"textLines":1,"bbox":[122,208,440,30]}
+{"kind":"textbox","id":"sh/6hory907","slide":6,"text":"• Expo mobile UI\n• Камерын preview ба permission\n• Setup, calibration, monitoring flow\n• History, settings, summary screens\n• Alert-ийн UI болон debug panel","textPreview":"• Expo mobile UI | • Камерын preview ба permission | • Setup, calibration, monitoring flow | • History, settings, summary screens | • Ale...","textChars":156,"textLines":5,"bbox":[122,248,435,230]}
+{"kind":"shape","id":"sh/lgfq5ozm","slide":6,"bbox":[700,185,500,310]}
+{"kind":"shape","id":"sh/kf69wjih","slide":6,"bbox":[718,205,5,270]}
+{"kind":"textbox","id":"sh/2d87uxsn","slide":6,"text":"Дараагийн хэрэгжүүлэх хэсэг","textPreview":"Дараагийн хэрэгжүүлэх хэсэг","textChars":27,"textLines":1,"bbox":[742,208,440,30]}
+{"kind":"textbox","id":"sh/3eh83it8","slide":6,"text":"• Face landmark detector\n• Нүүр camera frame дотор байгаа эсэх\n• Нүд анилт ба head-nod хэмжилт\n• Fatigue Score-ийн бодит өгөгдөл\n• Native siren болон RAG API integration","textPreview":"• Face landmark detector | • Нүүр camera frame дотор байгаа эсэх | • Нүд анилт ба head-nod хэмжилт | • Fatigue Score-ийн бодит өгөгдөл | ...","textChars":169,"textLines":5,"bbox":[742,248,435,230]}
+{"kind":"textbox","id":"sh/4fqpwnat","slide":6,"text":"Чухал: одоогийн Camera setup нь камераас нүүрний landmark уншдаггүй. Нөхцөл шалгалт нь UI/debug state дээр ажиллаж байна.","textPreview":"Чухал: одоогийн Camera setup нь камераас нүүрний landmark уншдаггүй. Нөхцөл шалгалт нь UI/debug state дээр ажиллаж байна.","textChars":121,"textLines":1,"bbox":[80,555,1110,45]}
+{"kind":"shape","id":"sh/pgzq5sby","slide":6,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/up87qdsb","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/fqh8zitw","slide":6,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/k5y9ao","slide":6,"text":"Implementation status verified from the target Expo project source on 2026-09-17."}
+{"kind":"slide","id":"sl/mudp1e","slide":7,"title":"Fatigue Score-ийн логик","textShapes":18}
+{"kind":"textbox","id":"sh/6pk3ahg3","slide":7,"text":"Fatigue Score-ийн логик","textPreview":"Fatigue Score-ийн логик","textChars":23,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/tsb2lwfu","slide":7,"text":"Эхний prototype босго нь calibration болон бодит туршилтаар сайжирна","textPreview":"Эхний prototype босго нь calibration болон бодит туршилтаар сайжирна","textChars":68,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/sr2lcry9","slide":7,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"textbox","id":"sh/jmtkfmxs","slide":7,"text":"PERCLOS","textPreview":"PERCLOS","textChars":7,"textLines":1,"bbox":[100,180,200,28]}
+{"kind":"textbox","id":"sh/ilk36hg7","slide":7,"text":"Сүүлийн 60 секундэд нүд анисан кадрын хувь","textPreview":"Сүүлийн 60 секундэд нүд анисан кадрын хувь","textChars":42,"textLines":1,"bbox":[330,180,550,30]}
+{"kind":"textbox","id":"sh/5ob2hwfi","slide":7,"text":"45%","textPreview":"45%","textChars":3,"textLines":1,"bbox":[1010,180,100,28]}
+{"kind":"shape","id":"sh/kn2l8ryx","slide":7,"bbox":[100,227,1000,8]}
+{"kind":"shape","id":"sh/3id4r6xw","slide":7,"bbox":[100,227,450,8]}
+{"kind":"textbox","id":"sh/2h43i1wb","slide":7,"text":"Long closure","textPreview":"Long closure","textChars":12,"textLines":1,"bbox":[100,280,200,28]}
+{"kind":"textbox","id":"sh/g7e187yd","slide":7,"text":"Нүд 0.8 секундээс удаан хаагдах","textPreview":"Нүд 0.8 секундээс удаан хаагдах","textChars":31,"textLines":1,"bbox":[330,280,550,30]}
+{"kind":"textbox","id":"sh/h8nihczy","slide":7,"text":"30%","textPreview":"30%","textChars":3,"textLines":1,"bbox":[1010,280,100,28]}
+{"kind":"shape","id":"sh/u5wj6xg7","slide":7,"bbox":[100,327,1000,8]}
+{"kind":"shape","id":"sh/v650f2hs","slide":7,"bbox":[100,327,300,8]}
+{"kind":"textbox","id":"sh/8je14ny1","slide":7,"text":"Head nod","textPreview":"Head nod","textChars":8,"textLines":1,"bbox":[100,380,200,28]}
+{"kind":"textbox","id":"sh/tknidszm","slide":7,"text":"60 секундэд давтагдсан толгой дохилт","textPreview":"60 секундэд давтагдсан толгой дохилт","textChars":36,"textLines":1,"bbox":[330,380,550,30]}
+{"kind":"textbox","id":"sh/6hwz2xgb","slide":7,"text":"25%","textPreview":"25%","textChars":3,"textLines":1,"bbox":[1010,380,100,28]}
+{"kind":"shape","id":"sh/7i50b2hg","slide":7,"bbox":[100,427,1000,8]}
+{"kind":"shape","id":"sh/kfuh0ny5","slide":7,"bbox":[100,427,250,8]}
+{"kind":"textbox","id":"sh/lg3i9szq","slide":7,"text":"40–64  Анхаарах","textPreview":"40–64  Анхаарах","textChars":15,"textLines":1,"bbox":[150,530,230,30]}
+{"kind":"textbox","id":"sh/lcvydore","slide":7,"text":"65–79  Дуут сэрэмжлүүлэг","textPreview":"65–79  Дуут сэрэмжлүүлэг","textChars":24,"textLines":1,"bbox":[480,530,300,30]}
+{"kind":"textbox","id":"sh/0bmx4jqt","slide":7,"text":"80–100  Аюулгүй зогсож амрах","textPreview":"80–100  Аюулгүй зогсож амрах","textChars":28,"textLines":1,"bbox":[850,530,330,30]}
+{"kind":"textbox","id":"sh/zadgbe98","slide":7,"text":"Нэг дохиогоор шийдвэр гаргахгүй. Хөдөлгөөнт цонх, smoothing, cooldown ашиглан false alarm-ыг бууруулна.","textPreview":"Нэг дохиогоор шийдвэр гаргахгүй. Хөдөлгөөнт цонх, smoothing, cooldown ашиглан false alarm-ыг бууруулна.","textChars":103,"textLines":1,"bbox":[100,607,1000,30]}
+{"kind":"shape","id":"sh/y94f298n","slide":7,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/d8vy94ri","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/c7mx0zax","slide":7,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/mudp1e","slide":7,"text":"Thresholds are proposed prototype parameters, not validated medical thresholds."}
+{"kind":"slide","id":"sl/8talpo","slide":8,"title":"Demo ба дараагийн алхам","textShapes":19}
+{"kind":"textbox","id":"sh/6x0jipkn","slide":8,"text":"Demo ба дараагийн алхам","textPreview":"Demo ба дараагийн алхам","textChars":23,"textLines":1,"bbox":[68,48,920,52]}
+{"kind":"textbox","id":"sh/t0b2t4je","slide":8,"text":"Танилцуулгын demo нь UI flow-г харуулж, CV integration-ийн шаардлагыг тодорхой тайлбарлана","textPreview":"Танилцуулгын demo нь UI flow-г харуулж, CV integration-ийн шаардлагыг тодорхой тайлбарлана","textChars":90,"textLines":1,"bbox":[70,108,840,30]}
+{"kind":"textbox","id":"sh/sz21kz2t","slide":8,"text":"FATIGUEGUARD","textPreview":"FATIGUEGUARD","textChars":12,"textLines":1,"bbox":[1065,54,150,24]}
+{"kind":"textbox","id":"sh/ja9knu1w","slide":8,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[95,176,40,30]}
+{"kind":"textbox","id":"sh/y90jepkr","slide":8,"text":"Demo","textPreview":"Demo","textChars":4,"textLines":1,"bbox":[175,170,250,28]}
+{"kind":"textbox","id":"sh/lwr2pkj2","slide":8,"text":"Home → Camera setup → Calibration → Driving","textPreview":"Home → Camera setup → Calibration → Driving","textChars":43,"textLines":1,"bbox":[460,172,630,48]}
+{"kind":"shape","id":"sh/kbi1gz2h","slide":8,"bbox":[95,238,995,1]}
+{"kind":"textbox","id":"sh/36tkze1g","slide":8,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[95,281,40,30]}
+{"kind":"textbox","id":"sh/25k3q9kv","slide":8,"text":"Туршилт","textPreview":"Туршилт","textChars":7,"textLines":1,"bbox":[175,275,250,28]}
+{"kind":"textbox","id":"sh/cfypcruh","slide":8,"text":"Гэрэлтүүлэг, утасны байрлал, нүүрний өнцөг","textPreview":"Гэрэлтүүлэг, утасны байрлал, нүүрний өнцөг","textChars":42,"textLines":1,"bbox":[460,277,630,48]}
+{"kind":"shape","id":"sh/dg7qlwv2","slide":8,"bbox":[95,343,995,1]}
+{"kind":"textbox","id":"sh/qdw7ahcb","slide":8,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[95,386,40,30]}
+{"kind":"textbox","id":"sh/bep8jmdw","slide":8,"text":"Integration","textPreview":"Integration","textChars":11,"textLines":1,"bbox":[175,380,250,28]}
+{"kind":"textbox","id":"sh/obep87u5","slide":8,"text":"Face detector, score engine, siren, RAG","textPreview":"Face detector, score engine, siren, RAG","textChars":39,"textLines":1,"bbox":[460,382,630,48]}
+{"kind":"shape","id":"sh/pcnqhcvq","slide":8,"bbox":[95,448,995,1]}
+{"kind":"textbox","id":"sh/29w76hcf","slide":8,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[95,491,40,30]}
+{"kind":"textbox","id":"sh/3a58fmdk","slide":8,"text":"Validation","textPreview":"Validation","textChars":10,"textLines":1,"bbox":[175,485,250,28]}
+{"kind":"textbox","id":"sh/g7ep47u9","slide":8,"text":"False alarm болон missed detection-ийг бодит жолоодлогын нөхцөлд хэмжих","textPreview":"False alarm болон missed detection-ийг бодит жолоодлогын нөхцөлд хэмжих","textChars":71,"textLines":1,"bbox":[460,487,630,48]}
+{"kind":"shape","id":"sh/18nqdcvu","slide":8,"bbox":[95,553,995,1]}
+{"kind":"textbox","id":"sh/xsvel4j6","slide":8,"text":"Асуулт, санал","textPreview":"Асуулт, санал","textChars":13,"textLines":1,"bbox":[70,628,420,42]}
+{"kind":"textbox","id":"sh/wrmxsz2l","slide":8,"text":"Баярлалаа","textPreview":"Баярлалаа","textChars":9,"textLines":1,"bbox":[975,636,230,26]}
+{"kind":"shape","id":"sh/vqdwju1g","slide":8,"bbox":[70,676,1140,1]}
+{"kind":"textbox","id":"sh/ap4fqpkv","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[70,687,45,18]}
+{"kind":"textbox","id":"sh/9obeh4ja","slide":8,"text":"Driver fatigue detection project","textPreview":"Driver fatigue detection project","textChars":32,"textLines":1,"bbox":[930,687,280,18]}
+{"kind":"notes","id":"nt/8talpo","slide":8,"text":"Project roadmap and presentation close."}

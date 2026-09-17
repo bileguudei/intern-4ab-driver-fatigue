@@ -10,8 +10,10 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSCameraUsageDescription": "Жолоочийн ядаргааг хянахын тулд камер ашиглана."
-      }
+        "NSCameraUsageDescription": "Жолоочийн ядаргааг хянахын тулд камер ашиглана.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.nomin0813.driver-fatigue"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +22,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nomin0813.driverfatigue"
     },
     "web": {
       "output": "static",
@@ -40,6 +43,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3f36d52c-237a-4b16-8be7-126c35bbe481"
+      }
+    },
+    "owner": "nomin0813"
   }
 }
