@@ -83,7 +83,7 @@ async function createFatigueEvent(request: Request, env: Env) {
     if (!sessionId || !driverId) throw new Error("session_id and driver_id must be positive integers");
     const eventAt = typeof body.event_at === "string" ? body.event_at : new Date().toISOString();
     const metadata = body.metadata && typeof body.metadata === "object" ? JSON.stringify(body.metadata) : null;
-    await env.DB.prepare(
+    const insertResult = await env.DB.prepare(
         `INSERT INTO fatigue_events
          (client_id, session_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -100,12 +100,14 @@ async function createFatigueEvent(request: Request, env: Env) {
         typeof body.media_key === "string" ? body.media_key : null,
         metadata,
     ).run();
-    await env.DB.prepare(
-        `UPDATE driving_sessions
-         SET warning_count = warning_count + ?, critical_event_count = critical_event_count + ?,
-             fatigue_score = COALESCE(?, fatigue_score), updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-    ).bind(level === "warning" ? 1 : 0, level === "critical" ? 1 : 0, numberOrNull(body.fatigue_score), sessionId).run();
+    if (insertResult.meta.changes > 0) {
+        await env.DB.prepare(
+            `UPDATE driving_sessions
+             SET warning_count = warning_count + ?, critical_event_count = critical_event_count + ?,
+                 fatigue_score = COALESCE(?, fatigue_score), updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+        ).bind(level === "warning" ? 1 : 0, level === "critical" ? 1 : 0, numberOrNull(body.fatigue_score), sessionId).run();
+    }
     const event = await env.DB.prepare("SELECT * FROM fatigue_events WHERE client_id = ?").bind(clientId).first();
     return response(event, 201);
 }
@@ -123,10 +125,11 @@ async function syncOperations(request: Request, env: Env) {
         const resourceType = requiredString(item, "resource_type");
         const resourceId = requiredString(item, "resource_id");
         const payload = item.payload && typeof item.payload === "object" ? item.payload as JsonObject : {};
-        await env.DB.prepare(
+        const operationResult = await env.DB.prepare(
             `INSERT INTO sync_operations (operation_id, driver_id, resource_type, resource_id, payload_json)
              VALUES (?, ?, ?, ?, ?) ON CONFLICT(operation_id) DO NOTHING`,
         ).bind(operationId, driverId, resourceType, resourceId, JSON.stringify(payload)).run();
+        if (operationResult.meta.changes === 0) continue;
         if (resourceType === "session") {
             const clientId = requiredString(payload, "client_id");
             await env.DB.prepare(
