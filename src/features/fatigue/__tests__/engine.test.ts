@@ -92,4 +92,17 @@ describe('createFatigueEngine', () => {
     // Оноо өсөхдөө эхлээд warning-оор дамжина
     expect(engine.finish()).toMatchObject({ durationSeconds: 12, criticalCount: 1, warningCount: 1 });
   });
+
+  it('хяналтгүй хугацааг тооцож, шинэ аялалд өмнөх явдлыг цэвэрлэнэ', () => {
+    const { engine, tick } = setup();
+    engine.startCalibration();
+    engine.onCameraStatus('running');
+    engine.onCameraStatus('stopped');
+    tick(30_000);
+    engine.onCameraStatus('running');
+    expect(engine.finish()).toMatchObject({ unmonitoredSeconds: 30 });
+
+    engine.startCalibration();
+    expect(engine.getEvents()).toHaveLength(0);
+  });
 });
