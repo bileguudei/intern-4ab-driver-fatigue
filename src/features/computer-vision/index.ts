@@ -3,6 +3,7 @@ export { calculateHeadPose } from './calculate-head-pose';
 export {
   ComputerVisionCamera,
   getComputerVisionCameraPermissionStatus,
+  isDriverFatigueVisionAvailable,
   requestComputerVisionCameraPermission,
 } from './computer-vision-camera';
 export type { ComputerVisionCameraProps } from './computer-vision-camera';
