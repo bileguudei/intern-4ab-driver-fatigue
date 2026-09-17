@@ -9,7 +9,7 @@ function observation(faceDetected: boolean, timestampMs = 1_000): ComputerVision
     timestampMs, faceDetected, faceConfidence: null,
     leftEar: 0.3, rightEar: 0.3, averageEar: 0.3,
     leftBlink: 0.1, rightBlink: 0.1, jawOpen: 0,
-    headPose: null, brightness: 0.5, inferenceTimeMs: 10, landmarkCount: 478,
+    headPose: { pitch: 3, yaw: 0, roll: 0 }, brightness: 0.5, inferenceTimeMs: 10, landmarkCount: 478,
   };
 }
 
@@ -63,5 +63,21 @@ describe('createFatigueEngine', () => {
     unsubscribe();
     engine.accept(observation(false));
     expect(seen).toEqual([false, false, true]);
+  });
+
+  it('калибраци 10 сек ажиглалтын дараа суурь тогтооно', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+    expect(engine.getState().calibration).toBe('done');
+    expect(engine.getState().baseline?.blinkOpen).toBeCloseTo(0.1);
+  });
+
+  it('нүүр олдоогүй бол калибраци амжилтгүй болно', () => {
+    const { engine } = setup();
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(false, t));
+    expect(engine.getState().calibration).toBe('failed');
   });
 });

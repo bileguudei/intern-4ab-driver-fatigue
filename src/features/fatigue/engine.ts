@@ -1,5 +1,7 @@
 import type { ComputerVisionObservation, VisionStatus } from '@/features/computer-vision';
 
+import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
+
 export type FatigueLevel = 'normal' | 'warning' | 'critical';
 
 export type FatigueEvent = Readonly<{
@@ -15,6 +17,8 @@ export type FatigueEngineState = Readonly<{
   cameraStatus: VisionStatus;
   /** Камер ажиллаж, нүүрний өгөгдөл ирж байгаа эсэх. */
   monitoring: boolean;
+  calibration: 'idle' | 'running' | 'done' | 'failed';
+  baseline: Baseline | null;
 }>;
 
 export type FatigueEngineOptions = { now?: () => number; createId?: () => string };
@@ -32,7 +36,10 @@ export function createFatigueEngine({
 }: FatigueEngineOptions = {}) {
   const listeners = new Set<(state: FatigueEngineState) => void>();
   const events: FatigueEvent[] = [];
-  let state: FatigueEngineState = { level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false };
+  let state: FatigueEngineState = {
+    level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', baseline: null,
+  };
+  let samples: ComputerVisionObservation[] = [];
 
   const update = (next: Partial<FatigueEngineState>) => {
     state = { ...state, ...next };
@@ -46,8 +53,21 @@ export function createFatigueEngine({
   return {
     accept(observation: ComputerVisionObservation) {
       const monitoring = state.cameraStatus === 'running' && observation.faceDetected;
-      if (monitoring === state.monitoring) return;
-      update({ monitoring });
+      if (monitoring !== state.monitoring) update({ monitoring });
+      if (state.calibration !== 'running') return;
+
+      samples.push(observation);
+      // Монотон цагаар хэмжинэ — фрэйм тасарсан ч 10 сек-ийн цонх зөв байна.
+      if (observation.timestampMs - samples[0].timestampMs < CALIBRATION_MS) return;
+      const baseline = calibrate(samples);
+      samples = [];
+      update({ baseline, calibration: baseline ? 'done' : 'failed' });
+    },
+
+    /** Жолоочоос шулуун харж, хэвийн анивчихыг хүсээд дуудна. */
+    startCalibration() {
+      samples = [];
+      update({ calibration: 'running', baseline: null });
     },
 
     /**
