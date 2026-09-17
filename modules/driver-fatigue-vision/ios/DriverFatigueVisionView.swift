@@ -5,10 +5,11 @@ import UIKit
 
 private let modelFileName = "face_landmarker"
 private let modelFileExtension = "task"
-private let defaultTargetFps = 12
+private let defaultTargetFps = 15
 private let minimumTargetFps = 1
 private let maximumTargetFps = 15
 private let brightnessCacheWindowMs = 2_000
+private let publishedBlendshapes: Set<String> = ["eyeBlinkLeft", "eyeBlinkRight", "jawOpen"]
 
 final class DriverFatigueVisionView: ExpoView,
   AVCaptureVideoDataOutputSampleBufferDelegate,
@@ -190,7 +191,7 @@ final class DriverFatigueVisionView: ExpoView,
     options.minFaceDetectionConfidence = 0.5
     options.minFacePresenceConfidence = 0.5
     options.minTrackingConfidence = 0.5
-    options.outputFaceBlendshapes = false
+    options.outputFaceBlendshapes = true
     options.outputFacialTransformationMatrixes = true
     options.faceLandmarkerLiveStreamDelegate = self
     faceLandmarker = try FaceLandmarker(options: options)
@@ -294,9 +295,20 @@ final class DriverFatigueVisionView: ExpoView,
       "faceConfidence": NSNull(),
       "landmarks": landmarks,
       "facialTransformationMatrix": transformationMatrix,
+      "blendshapes": Self.selectedBlendshapes(result?.faceBlendshapes.first),
       "brightness": brightness.map { $0 as Any } ?? NSNull(),
       "inferenceTimeMs": inferenceTimeMs,
     ])
+  }
+
+  private static func selectedBlendshapes(_ classifications: Classifications?) -> Any {
+    guard let classifications else { return NSNull() }
+    var scores: [String: Double] = [:]
+    for category in classifications.categories {
+      guard let name = category.categoryName, publishedBlendshapes.contains(name) else { continue }
+      scores[name] = Double(category.score)
+    }
+    return scores
   }
 
   private static func flattenColumnMajor(_ matrix: TransformMatrix) -> [Double] {
