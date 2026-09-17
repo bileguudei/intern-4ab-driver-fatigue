@@ -51,6 +51,8 @@ export function createFatigueEngine({
   let session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
 
   const update = (next: Partial<FatigueEngineState>) => {
+    const changed = (Object.keys(next) as (keyof FatigueEngineState)[]).some((key) => next[key] !== state[key]);
+    if (!changed) return;
     state = { ...state, ...next };
     listeners.forEach((listener) => listener(state));
   };

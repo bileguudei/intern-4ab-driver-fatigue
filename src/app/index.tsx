@@ -28,8 +28,8 @@ export default function GuardApp() {
   let screen: React.ReactNode;
   if (route.kind === 'tabs') screen = route.tab === 'home' ? <HomeScreen onStart={() => showFlow('camera')} /> : route.tab === 'history' ? <HistoryScreen /> : <SettingsScreen />;
   else if (route.screen === 'camera') screen = <CameraSetupScreen onBack={() => showTab('home')} onContinue={() => showFlow('calibration')} />;
-  else if (route.screen === 'calibration') screen = <CalibrationScreen onBack={() => showFlow('camera')} onComplete={() => showFlow('driving')} />;
-  else if (route.screen === 'driving') screen = <DrivingScreen onFinish={(data) => { setSummary(data); showFlow('summary'); }} />;
+  else if (route.screen === 'calibration') screen = <CalibrationScreen engine={engine} onBack={() => showFlow('camera')} onComplete={() => showFlow('driving')} />;
+  else if (route.screen === 'driving') screen = <DrivingScreen engine={engine} onFinish={(data) => { setSummary(data); showFlow('summary'); }} />;
   else screen = <SessionSummaryScreen data={summary} onHome={() => showTab('home')} />;
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content" backgroundColor={colors.background} /><View style={styles.app}>{monitoring ? <ComputerVisionCamera active style={styles.monitorCamera} onObservation={engine.accept} onStatusChange={engine.onCameraStatus} /> : null}{screen}{route.kind === 'tabs' ? <BottomNav active={route.tab} onChange={showTab} /> : null}</View></SafeAreaView>;
 }
