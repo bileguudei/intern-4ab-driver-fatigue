@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["DriverFatigueVisionModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.driverfatiguevision.DriverFatigueVisionModule"]
+  }
+}
