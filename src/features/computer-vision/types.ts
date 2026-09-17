@@ -19,6 +19,11 @@ export type ComputerVisionObservation = Readonly<{
   leftEar: number | null;
   rightEar: number | null;
   averageEar: number | null;
+  /** MediaPipe blendshape: 0 = нээлттэй, 1 = аньсан. EAR-аас тогтвортой. */
+  leftBlink: number | null;
+  rightBlink: number | null;
+  /** MediaPipe blendshape: 0 = ам хаалттай, 1 = бүрэн ангайсан. */
+  jawOpen: number | null;
   headPose: HeadPose | null;
   brightness: number | null;
   inferenceTimeMs: number;
@@ -30,6 +35,7 @@ export type FaceLandmarkerFrameResult = Readonly<{
   faceConfidence: number | null;
   landmarks: readonly NormalizedLandmark[] | null;
   facialTransformationMatrix: readonly number[] | null;
+  blendshapes?: Readonly<Record<string, number>> | null;
   brightness: number | null;
   inferenceTimeMs: number;
 }>;

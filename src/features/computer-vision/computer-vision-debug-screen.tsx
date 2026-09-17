@@ -78,7 +78,7 @@ export function ComputerVisionDebugScreen() {
       <ComputerVisionCamera
         active={isActive}
         style={styles.camera}
-        targetFps={12}
+        targetFps={15}
         onObservation={handleObservation}
         onStatusChange={setStatus}
         onError={setError}
@@ -98,6 +98,9 @@ export function ComputerVisionDebugScreen() {
         <Row label="left EAR" value={formatNumber(observation?.leftEar ?? null, 3)} />
         <Row label="right EAR" value={formatNumber(observation?.rightEar ?? null, 3)} />
         <Row label="avg EAR" value={formatNumber(observation?.averageEar ?? null, 3)} />
+        <Row label="left blink" value={formatNumber(observation?.leftBlink ?? null, 3)} />
+        <Row label="right blink" value={formatNumber(observation?.rightBlink ?? null, 3)} />
+        <Row label="jaw open" value={formatNumber(observation?.jawOpen ?? null, 2)} />
         <Row label="pitch" value={formatNumber(observation?.headPose?.pitch ?? null, 1)} />
         <Row label="yaw" value={formatNumber(observation?.headPose?.yaw ?? null, 1)} />
         <Row label="roll" value={formatNumber(observation?.headPose?.roll ?? null, 1)} />

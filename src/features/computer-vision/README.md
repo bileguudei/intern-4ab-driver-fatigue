@@ -21,7 +21,9 @@ function onObservation(observation: ComputerVisionObservation) {
 }
 ```
 
-`averageEar` is null unless both eyes have valid landmarks. `headPose` is null when
+`averageEar` is null unless both eyes have valid landmarks. `leftBlink`, `rightBlink`
+and `jawOpen` are MediaPipe blendshape scores (0–1) and are null when no face is detected;
+field measurements showed eyeBlink to be 3–11× steadier than EAR while the eyes are open. `headPose` is null when
 MediaPipe does not return a valid facial transformation matrix. Missing values must
 never be interpreted as zero by consumers. `faceConfidence` is currently null
 because MediaPipe Face Landmarker does not expose a per-result detection score.
@@ -90,6 +92,6 @@ For the first physical-device smoke test, verify that:
 5. Backgrounding the app stops capture. Returning to the foreground restarts
    it only while `active` remains true.
 
-The native adapters default to 12 FPS and clamp `targetFps` to 1–15. Android
+The native adapters default to 15 FPS and clamp `targetFps` to 1–15. Android
 uses CameraX `KEEP_ONLY_LATEST`; iOS uses
 `alwaysDiscardsLateVideoFrames`, so neither platform builds an inference queue.

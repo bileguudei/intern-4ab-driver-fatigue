@@ -8,11 +8,16 @@ export type NativeNormalizedLandmark = Readonly<{
   z: number;
 }>;
 
+export type BlendshapeName = 'eyeBlinkLeft' | 'eyeBlinkRight' | 'jawOpen';
+
+export type NativeBlendshapes = Readonly<Partial<Record<BlendshapeName, number>>>;
+
 export type NativeFrameResult = Readonly<{
   timestampMs: number;
   faceConfidence: null;
   landmarks: readonly NativeNormalizedLandmark[] | null;
   facialTransformationMatrix: readonly number[] | null;
+  blendshapes: NativeBlendshapes | null;
   brightness: number | null;
   inferenceTimeMs: number;
 }>;
