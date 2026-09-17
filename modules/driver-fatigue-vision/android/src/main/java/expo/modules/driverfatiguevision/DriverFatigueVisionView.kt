@@ -31,10 +31,11 @@ import java.util.concurrent.Executors
 import kotlin.math.max
 
 private const val MODEL_ASSET_PATH = "face_landmarker.task"
-private const val DEFAULT_TARGET_FPS = 12
+private const val DEFAULT_TARGET_FPS = 15
 private const val MIN_TARGET_FPS = 1
 private const val MAX_TARGET_FPS = 15
 private const val RESULT_CACHE_WINDOW_MS = 2_000L
+private val PUBLISHED_BLENDSHAPES = setOf("eyeBlinkLeft", "eyeBlinkRight", "jawOpen")
 
 class DriverFatigueVisionView(
   context: Context,
@@ -197,7 +198,7 @@ class DriverFatigueVisionView(
       .setMinFaceDetectionConfidence(0.5f)
       .setMinFacePresenceConfidence(0.5f)
       .setMinTrackingConfidence(0.5f)
-      .setOutputFaceBlendshapes(false)
+      .setOutputFaceBlendshapes(true)
       .setOutputFacialTransformationMatrixes(true)
       .setResultListener(::handleResult)
       .setErrorListener { error ->
@@ -249,6 +250,9 @@ class DriverFatigueVisionView(
     }
     val matrix = result.facialTransformationMatrixes().orElse(emptyList()).firstOrNull()
       ?.map(Float::toDouble)
+    val blendshapes = result.faceBlendshapes().orElse(emptyList()).firstOrNull()
+      ?.filter { category -> category.categoryName() in PUBLISHED_BLENDSHAPES }
+      ?.associate { category -> category.categoryName() to category.score().toDouble() }
     val timestampMs = result.timestampMs()
 
     onFrameResult(
@@ -257,6 +261,7 @@ class DriverFatigueVisionView(
         "faceConfidence" to null,
         "landmarks" to landmarks,
         "facialTransformationMatrix" to matrix,
+        "blendshapes" to blendshapes,
         "brightness" to brightnessByTimestamp.remove(timestampMs),
         "inferenceTimeMs" to max(0L, SystemClock.uptimeMillis() - timestampMs).toDouble(),
       ),

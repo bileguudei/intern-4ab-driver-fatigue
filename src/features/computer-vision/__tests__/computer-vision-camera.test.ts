@@ -9,6 +9,7 @@ describe('toComputerVisionObservation', () => {
       faceConfidence: null,
       landmarks: null,
       facialTransformationMatrix: null,
+      blendshapes: null,
       brightness: 2,
       inferenceTimeMs: -1,
     });
@@ -20,6 +21,9 @@ describe('toComputerVisionObservation', () => {
       leftEar: null,
       rightEar: null,
       averageEar: null,
+      leftBlink: null,
+      rightBlink: null,
+      jawOpen: null,
       headPose: null,
       brightness: 1,
       inferenceTimeMs: 0,

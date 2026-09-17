@@ -27,6 +27,11 @@ export function createComputerVisionObservation(
     ? calculateEyeAspectRatio(landmarks, RIGHT_EYE_EAR_INDICES)
     : null;
 
+  const blendshape = (name: string): number | null => {
+    const score = faceDetected ? result.blendshapes?.[name] : undefined;
+    return score === undefined || !Number.isFinite(score) ? null : clampUnitInterval(score);
+  };
+
   return {
     timestampMs: result.timestampMs,
     faceDetected,
@@ -37,6 +42,9 @@ export function createComputerVisionObservation(
     leftEar,
     rightEar,
     averageEar: calculateAverageEar(leftEar, rightEar),
+    leftBlink: blendshape("eyeBlinkLeft"),
+    rightBlink: blendshape("eyeBlinkRight"),
+    jawOpen: blendshape("jawOpen"),
     headPose:
       faceDetected && result.facialTransformationMatrix !== null
         ? calculateHeadPose(result.facialTransformationMatrix)
