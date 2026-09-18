@@ -3,10 +3,18 @@ import type { ComputerVisionObservation } from '@/features/computer-vision';
 import type { Baseline } from './calibration';
 import { MAX_FRAME_MS } from './eyes';
 
+/**
+ * iPhone дээр хэмжихэд толгой доошлоход pitch БУУРДАГ: шулуун −8.6°,
+ * бага зэрэг доош −18.6°, эрүү цээж рүү −38.0°. Computer Vision-ий README
+ * «эерэг = доош» гэж бичсэн нь бодит хэмжилттэй зөрж байгааг тэдэнд мэдэгдэв.
+ * Тэр талд засагдвал энэ тэмдгийг +1 болгоно.
+ */
+const DOWN_SIGN = -1;
+
 /** Суурь байрлалаас доош хэдэн градус бөхийвөл дохилт эхэлсэн гэж үзэх. */
-const NOD_START_DEG = 15;
+const NOD_START_DEG = 10;
 /** Гистерезис — босгыг шүргэх хэлбэлзэлд дохилт тасрахгүй. */
-const NOD_END_DEG = 8;
+const NOD_END_DEG = 5;
 /**
  * «Унжаад гэнэт өндийх» жижиг дохилт. Хэмжилтэд толгой 0.75 сек-т +30° хүртэл
  * бөхийсөн. Удаан доош харах (утас, самбар) 3 сек-ээс урт тул тоологдохгүй.
@@ -39,7 +47,7 @@ export function createHeadTracker() {
       const t = observation.timestampMs;
       const pitch = observation.headPose?.pitch;
       const valid = observation.faceDetected && typeof pitch === 'number';
-      const down = valid ? (pitch as number) - baseline.headPitch : 0;
+      const down = valid ? ((pitch as number) - baseline.headPitch) * DOWN_SIGN : 0;
 
       // Нүүр алдагдах, фрэйм тасрахад дохилтыг дуусгасан гэж тоолохгүй — зүгээр хаяна.
       const broken = episode !== null && (!valid || t - episode.last > MAX_FRAME_MS);
