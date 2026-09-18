@@ -4,6 +4,7 @@ import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
 import { createEyeTracker } from './eyes';
 import { createHeadTracker } from './head';
 import { computeScore, type FatigueLevel, nextLevel } from './score';
+import { createYawnTracker } from './yawn';
 
 export type { FatigueLevel };
 
@@ -48,6 +49,7 @@ export function createFatigueEngine({
   let samples: ComputerVisionObservation[] = [];
   let eyes = createEyeTracker();
   let head = createHeadTracker();
+  let yawn = createYawnTracker();
   let session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
 
   const update = (next: Partial<FatigueEngineState>) => {
@@ -65,8 +67,9 @@ export function createFatigueEngine({
     const headState = head.update(observation, baseline);
     const eyeUpdate = eyes.update(observation, baseline);
     const eyeState = headState.downDeg > HEAD_DOWN_IGNORE_EYES_DEG ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
-    const score = computeScore(eyeState, headState);
-    const level = nextLevel(state.level, score, eyeState, headState);
+    const yawnState = yawn.update(observation);
+    const score = computeScore(eyeState, headState, yawnState);
+    const level = nextLevel(state.level, score, eyeState, headState, yawnState);
     session = { ...session, scoreSum: session.scoreSum + score, scoreCount: session.scoreCount + 1, maxScore: Math.max(session.maxScore, score) };
     const escalated = level !== state.level && level !== 'normal';
     if (escalated) record(level === 'critical' ? 'fatigue_critical' : 'fatigue_warning');
@@ -94,6 +97,7 @@ export function createFatigueEngine({
       events.length = 0; // өмнөх аяллын явдал шинэ аяллын дүнд орохгүй
       eyes = createEyeTracker();
       head = createHeadTracker();
+      yawn = createYawnTracker();
       session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
       update({ calibration: 'running', baseline: null, level: 'normal', score: 0 });
     },
