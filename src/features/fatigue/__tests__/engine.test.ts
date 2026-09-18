@@ -105,4 +105,16 @@ describe('createFatigueEngine', () => {
     engine.startCalibration();
     expect(engine.getEvents()).toHaveLength(0);
   });
+
+  it('эвшээх үед нүд анилтыг critical гэж тоолохгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+    // Ам ангайж, нүд аньсан 3 секунд — эвшээлт
+    for (let t = 10_050; t <= 13_000; t += 50) {
+      engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8, jawOpen: 0.8 });
+    }
+    expect(engine.getState().level).not.toBe('critical');
+  });
 });

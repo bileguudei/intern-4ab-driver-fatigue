@@ -65,9 +65,12 @@ export function createFatigueEngine({
 
   const assess = (observation: ComputerVisionObservation, baseline: Baseline) => {
     const headState = head.update(observation, baseline);
-    const eyeUpdate = eyes.update(observation, baseline);
-    const eyeState = headState.downDeg > HEAD_DOWN_IGNORE_EYES_DEG ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const yawnState = yawn.update(observation);
+    const eyeUpdate = eyes.update(observation, baseline);
+    // Эвшээх үед нүд аяндаа анилдаг, толгой доош үед eyeBlink найдваргүй —
+    // энэ хоёр тохиолдолд анилтын хугацааг тоолвол хуурамч critical гарна.
+    const ignoreEyes = headState.downDeg > HEAD_DOWN_IGNORE_EYES_DEG || yawnState.open;
+    const eyeState = ignoreEyes ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const score = computeScore(eyeState, headState, yawnState);
     const level = nextLevel(state.level, score, eyeState, headState, yawnState);
     session = { ...session, scoreSum: session.scoreSum + score, scoreCount: session.scoreCount + 1, maxScore: Math.max(session.maxScore, score) };
