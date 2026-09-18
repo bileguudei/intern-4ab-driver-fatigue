@@ -11,7 +11,8 @@
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSCameraUsageDescription": "Жолоочийн ядаргааг хянахын тулд камер ашиглана."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.driverfatigue"
     },
     "android": {
       "adaptiveIcon": {
@@ -47,7 +48,9 @@
         {
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

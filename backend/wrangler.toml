@@ -6,6 +6,7 @@ compatibility_date = "2026-09-17"
 binding = "DB"
 database_name = "driver-fatigue-db"
 database_id = "d4fcdbb4-2c69-4ec1-afea-f95015ea22b1"
+migrations_dir = "migrations"
 
 # Configure these bindings in the Cloudflare dashboard or with your own IDs
 # before enabling the corresponding RAG/media features in production.

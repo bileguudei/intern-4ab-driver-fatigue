@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, StatusBar, StyleSheet, View } from 'react-native';
+import * as Network from 'expo-network';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ComputerVisionCamera } from '@/features/computer-vision';
 import { createFatigueEngine } from '@/features/fatigue/engine';
@@ -15,24 +16,71 @@ import { SessionSummaryScreen } from '@/fatigueguard/screens/SessionSummaryScree
 import { SettingsScreen } from '@/fatigueguard/screens/SettingsScreen';
 import { colors } from '@/fatigueguard/theme';
 import type { Route, SessionSummary, TabName } from '@/fatigueguard/types';
+import { addLocalFatigueEvent, completeLocalSession, createLocalSession } from '@/data/local-db';
+import { syncPendingData } from '@/data/sync';
 
 const emptySummary: SessionSummary = { durationSeconds: 0, warningCount: 0, criticalCount: 0, maxScore: 24, avgScore: 24 };
 
 export default function GuardApp() {
   const [route, setRoute] = useState<Route>({ kind: 'tabs', tab: 'home' });
   const [summary, setSummary] = useState<SessionSummary>(emptySummary);
+  const activeSessionClientId = useRef<string | null>(null);
   // Калибраци, жолоодлогын турш нэг engine, нэг камер. Камерыг дэлгэц бүрт
   // тусад нь байрлуулбал солигдох бүрд ~1 сек унтарч, калибраци тасарна.
   const engine = useMemo(() => createFatigueEngine(), []);
+  useEffect(() => {
+    void syncPendingData().catch((error) => console.warn('Background sync unavailable:', error));
+    const networkSubscription = Network.addNetworkStateListener(({ isConnected }) => {
+      if (isConnected) void syncPendingData().catch((error) => console.warn('Background sync unavailable:', error));
+    });
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void syncPendingData().catch((error) => console.warn('Background sync unavailable:', error));
+    });
+    return () => {
+      networkSubscription.remove();
+      appStateSubscription.remove();
+    };
+  }, []);
   const monitoring = route.kind === 'flow' && (route.screen === 'calibration' || route.screen === 'driving');
   const keepAwake = route.kind === 'flow' && route.screen !== 'summary';
   const showTab = (tab: TabName) => setRoute({ kind: 'tabs', tab });
   const showFlow = (screen: 'camera' | 'calibration' | 'driving' | 'summary') => setRoute({ kind: 'flow', screen });
+  const handleCalibrationComplete = async () => {
+    const session = await createLocalSession();
+    activeSessionClientId.current = session.clientId;
+    showFlow('driving');
+  };
+  const handleFinish = async (data: SessionSummary) => {
+    const clientId = activeSessionClientId.current;
+    if (clientId) {
+      await completeLocalSession(clientId, {
+        endedAt: new Date().toISOString(),
+        fatigueScore: data.maxScore,
+        warningCount: data.warningCount,
+        criticalEventCount: data.criticalCount,
+      });
+      for (const event of engine.getEvents()) {
+        if (event.type !== 'fatigue_warning' && event.type !== 'fatigue_critical') continue;
+        await addLocalFatigueEvent({
+          client_id: `event:${event.id}`,
+          session_client_id: clientId,
+          driver_id: 1,
+          level: event.type === 'fatigue_warning' ? 'warning' : 'critical',
+          fatigue_score: null,
+          event_at: new Date(event.occurredAt).toISOString(),
+          metadata_json: null,
+        });
+      }
+      void syncPendingData().catch((error) => console.warn('Session sync deferred:', error));
+    }
+    setSummary(data);
+    showFlow('summary');
+  };
   let screen: React.ReactNode;
   if (route.kind === 'tabs') screen = route.tab === 'home' ? <HomeScreen onStart={() => showFlow('camera')} /> : route.tab === 'history' ? <HistoryScreen /> : <SettingsScreen />;
   else if (route.screen === 'camera') screen = <CameraSetupScreen onBack={() => showTab('home')} onContinue={() => showFlow('calibration')} />;
-  else if (route.screen === 'calibration') screen = <CalibrationScreen engine={engine} onBack={() => showFlow('camera')} onComplete={() => showFlow('driving')} />;
-  else if (route.screen === 'driving') screen = <DrivingScreen engine={engine} onFinish={(data) => { setSummary(data); showFlow('summary'); }} />;
+  else if (route.screen === 'calibration') screen = <CalibrationScreen engine={engine} onBack={() => showFlow('camera')} onComplete={handleCalibrationComplete} />;
+  else if (route.screen === 'driving') screen = <DrivingScreen engine={engine} onFinish={handleFinish} />;
   else screen = <SessionSummaryScreen data={summary} onHome={() => showTab('home')} />;
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content" backgroundColor={colors.background} /><View style={styles.app}>{keepAwake ? <KeepScreenAwake /> : null}{route.kind === 'flow' && route.screen === 'driving' ? <FatigueAlarm engine={engine} /> : null}{monitoring ? <ComputerVisionCamera active style={styles.monitorCamera} onObservation={engine.accept} onStatusChange={engine.onCameraStatus} /> : null}{screen}{route.kind === 'tabs' ? <BottomNav active={route.tab} onChange={showTab} /> : null}</View></SafeAreaView>;
 }

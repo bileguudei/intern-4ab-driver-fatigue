@@ -77,20 +77,28 @@ async function createSession(request: Request, env: Env) {
 async function createFatigueEvent(request: Request, env: Env) {
     const body = await readJson(request);
     const clientId = requiredString(body, "client_id");
-    const sessionId = parseId(String(body.session_id ?? ""));
+    let sessionId = parseId(String(body.session_id ?? ""));
+    const sessionClientId = typeof body.session_client_id === "string" ? body.session_client_id : null;
     const driverId = parseId(String(body.driver_id ?? ""));
     const level = requiredString(body, "level");
+    if (!sessionId && sessionClientId) {
+        const session = await env.DB.prepare("SELECT id FROM driving_sessions WHERE client_id = ?")
+            .bind(sessionClientId)
+            .first<{ id: number }>();
+        sessionId = session?.id ?? null;
+    }
     if (!sessionId || !driverId) throw new Error("session_id and driver_id must be positive integers");
     const eventAt = typeof body.event_at === "string" ? body.event_at : new Date().toISOString();
     const metadata = body.metadata && typeof body.metadata === "object" ? JSON.stringify(body.metadata) : null;
     await env.DB.prepare(
         `INSERT INTO fatigue_events
-         (client_id, session_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (client_id, session_id, session_client_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(client_id) DO NOTHING`,
     ).bind(
         clientId,
         sessionId,
+        sessionClientId,
         driverId,
         level,
         numberOrNull(body.fatigue_score),
@@ -123,10 +131,10 @@ async function syncOperations(request: Request, env: Env) {
         const resourceType = requiredString(item, "resource_type");
         const resourceId = requiredString(item, "resource_id");
         const payload = item.payload && typeof item.payload === "object" ? item.payload as JsonObject : {};
-        await env.DB.prepare(
-            `INSERT INTO sync_operations (operation_id, driver_id, resource_type, resource_id, payload_json)
-             VALUES (?, ?, ?, ?, ?) ON CONFLICT(operation_id) DO NOTHING`,
-        ).bind(operationId, driverId, resourceType, resourceId, JSON.stringify(payload)).run();
+        const alreadySynced = await env.DB.prepare("SELECT id FROM sync_operations WHERE operation_id = ?")
+            .bind(operationId)
+            .first();
+        if (alreadySynced) continue;
         if (resourceType === "session") {
             const clientId = requiredString(payload, "client_id");
             await env.DB.prepare(
@@ -147,14 +155,21 @@ async function syncOperations(request: Request, env: Env) {
             ).run();
         } else if (resourceType === "fatigue_event") {
             const clientId = requiredString(payload, "client_id");
-            const sessionId = parseId(String(payload.session_id ?? ""));
-            if (!sessionId) throw new Error("fatigue_event payload requires session_id");
+            let sessionId = parseId(String(payload.session_id ?? ""));
+            if (!sessionId && typeof payload.session_client_id === "string") {
+                const session = await env.DB.prepare("SELECT id FROM driving_sessions WHERE client_id = ?")
+                    .bind(payload.session_client_id)
+                    .first<{ id: number }>();
+                sessionId = session?.id ?? null;
+            }
+            if (!sessionId) throw new Error("fatigue_event payload requires a synced session_id or session_client_id");
             await env.DB.prepare(
-                `INSERT INTO fatigue_events (client_id, session_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO NOTHING`,
+                `INSERT INTO fatigue_events (client_id, session_id, session_client_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO NOTHING`,
             ).bind(
                 clientId,
                 sessionId,
+                typeof payload.session_client_id === "string" ? payload.session_client_id : null,
                 driverId,
                 requiredString(payload, "level"),
                 numberOrNull(payload.fatigue_score),
@@ -165,6 +180,10 @@ async function syncOperations(request: Request, env: Env) {
                 payload.metadata && typeof payload.metadata === "object" ? JSON.stringify(payload.metadata) : null,
             ).run();
         }
+        await env.DB.prepare(
+            `INSERT INTO sync_operations (operation_id, driver_id, resource_type, resource_id, payload_json)
+             VALUES (?, ?, ?, ?, ?) ON CONFLICT(operation_id) DO NOTHING`,
+        ).bind(operationId, driverId, resourceType, resourceId, JSON.stringify(payload)).run();
     }
     return response({ synced: operations.length });
 }
