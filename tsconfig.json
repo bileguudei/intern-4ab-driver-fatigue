@@ -13,6 +13,9 @@
       "@/assets": [
         "assets"
       ],
+      "@assets/*": [
+        "assets/*"
+      ],
       "@modules/*": [
         "modules/*"
       ]
