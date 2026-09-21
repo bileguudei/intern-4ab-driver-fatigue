@@ -26,6 +26,16 @@ export type ComputerVisionCameraProps = Omit<
 export { isDriverFatigueVisionAvailable };
 
 export async function getComputerVisionCameraPermissionStatus(): Promise<CameraPermissionStatus> {
+  if (Platform.OS === 'web') {
+    if (!navigator.mediaDevices?.getUserMedia) return 'denied';
+    try {
+      const permission = await navigator.permissions?.query({ name: 'camera' as PermissionName });
+      return permission?.state === 'granted' ? 'granted' : permission?.state === 'denied' ? 'denied' : 'undetermined';
+    } catch {
+      return 'undetermined';
+    }
+  }
+
   if (!isDriverFatigueVisionAvailable) {
     return 'denied';
   }
@@ -44,6 +54,17 @@ export async function getComputerVisionCameraPermissionStatus(): Promise<CameraP
 }
 
 export async function requestComputerVisionCameraPermission(): Promise<CameraPermissionStatus> {
+  if (Platform.OS === 'web') {
+    if (!navigator.mediaDevices?.getUserMedia) return 'denied';
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return 'granted';
+    } catch {
+      return 'denied';
+    }
+  }
+
   if (!isDriverFatigueVisionAvailable) {
     return 'denied';
   }

@@ -6,16 +6,7 @@ compatibility_date = "2026-09-17"
 binding = "DB"
 database_name = "driver-fatigue-db"
 database_id = "d4fcdbb4-2c69-4ec1-afea-f95015ea22b1"
-
-# Configure these bindings in the Cloudflare dashboard or with your own IDs
-# before enabling the corresponding RAG/media features in production.
-[[r2_buckets]]
-binding = "MEDIA"
-bucket_name = "driver-fatigue-media"
-
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "driver-fatigue-knowledge"
+migrations_dir = "migrations"
 
 [ai]
 binding = "AI"

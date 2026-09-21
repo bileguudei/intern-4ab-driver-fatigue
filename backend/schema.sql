@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS drivers (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+INSERT OR IGNORE INTO drivers (id, name, employee_id)
+VALUES (1, 'Local driver', 'local-driver-1');
+
 CREATE TABLE IF NOT EXISTS fatigue_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     driver_id INTEGER NOT NULL,
@@ -35,7 +38,8 @@ CREATE TABLE IF NOT EXISTS driving_sessions (
 CREATE TABLE IF NOT EXISTS fatigue_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id TEXT UNIQUE NOT NULL,
-    session_id INTEGER NOT NULL,
+    session_id INTEGER,
+    session_client_id TEXT,
     driver_id INTEGER NOT NULL,
     level TEXT NOT NULL,
     fatigue_score REAL,
