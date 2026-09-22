@@ -188,6 +188,23 @@ describe('createFatigueEngine', () => {
     expect(engine.getState().baseline?.headPitch).toBeLessThanOrEqual(8);
   });
 
+  it('толгой унжихад pose түр алдагдсан ч critical илрүүлэлт тасрахгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 12_100; t += 50) {
+      const poseMissed = t === 10_800 || t === 11_400;
+      engine.accept({
+        ...observation(!poseMissed, t),
+        headPose: poseMissed ? null : { pitch: 19, yaw: 0, roll: 0 },
+      });
+    }
+
+    expect(engine.getState().level).toBe('critical');
+  });
+
   it('жолооч хүрээнээс гараад өөр байрлалд буцвал дахин төвлөрч, анилтыг танина', () => {
     const { engine } = setup();
     engine.onCameraStatus('running');

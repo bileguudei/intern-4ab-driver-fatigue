@@ -29,6 +29,12 @@ describe('nextLevel', () => {
     expect(nextLevel('normal', 0, eyes(), head({ quickNods: 2 }), yawn())).toBe('warning');
   });
 
+  it('дунд зэргийн удаан унжилтыг таньж, өнцгийн жижиг савлагаанд critical-ийг хадгална', () => {
+    expect(nextLevel('normal', 0, eyes(), head({ droopMs: 1_600, downDeg: 16 }), yawn())).toBe('critical');
+    expect(nextLevel('critical', 0, eyes(), head({ droopMs: 1_700, downDeg: 11 }), yawn())).toBe('critical');
+    expect(nextLevel('critical', 0, eyes(), head({ droopMs: 0, downDeg: 4 }), yawn())).toBe('normal');
+  });
+
   it('гистерезис: орох, гарах босго ялгаатай', () => {
     expect(nextLevel('normal', 35, eyes(), head(), yawn())).toBe('normal');
     expect(nextLevel('warning', 35, eyes(), head(), yawn())).toBe('warning');

@@ -6,7 +6,8 @@ export type FatigueLevel = 'normal' | 'warning' | 'critical';
 
 /** Энэ хугацаанаас удаан аньсан бол оноо хүлээлгүй critical. Туршилтаар тааруулна. */
 export const CRITICAL_CLOSURE_MS = 1_500;
-const CRITICAL_DROOP = { ms: 1_500, deg: 20 };
+/** Удаан унжилтын орох/гарах өнцгийг салгаж pose-ийн жижиг савлагааг тогтворжуулна. */
+const CRITICAL_DROOP = { ms: 1_500, enterDeg: 15, exitDeg: 8 };
 /** Гистерезис: түвшинд орох ба гарах оноо ялгаатай — дэлгэц анивчихгүй. */
 /** 5 минутад ийм олон эвшээвэл оноо хүлээлгүй анхааруулна. */
 const YAWN_WARNING = 3;
@@ -28,7 +29,8 @@ export function computeScore(eyes: EyeState, head: HeadState, yawn: YawnState): 
 export function nextLevel(previous: FatigueLevel, score: number, eyes: EyeState, head: HeadState, yawn: YawnState): FatigueLevel {
   const criticalBar = previous === 'critical' ? EXIT.critical : ENTER.critical;
   const warningBar = previous === 'normal' ? ENTER.warning : EXIT.warning;
-  const droop = head.droopMs >= CRITICAL_DROOP.ms && head.downDeg >= CRITICAL_DROOP.deg;
+  const droopThreshold = previous === 'critical' ? CRITICAL_DROOP.exitDeg : CRITICAL_DROOP.enterDeg;
+  const droop = head.droopMs >= CRITICAL_DROOP.ms && head.downDeg >= droopThreshold;
   const matched = {
     critical: score >= criticalBar || eyes.closureMs >= CRITICAL_CLOSURE_MS || droop,
     warning: score >= warningBar || head.quickNods >= 2 || yawn.yawns >= YAWN_WARNING,
