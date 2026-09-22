@@ -5,7 +5,7 @@ import type { ComputerVisionObservation } from '@/features/computer-vision';
 import type { Baseline } from '../calibration';
 import { createHeadTracker, type HeadState } from '../head';
 
-const BASELINE: Baseline = { blinkOpen: 0.2, blinkClosed: 0.55, earOpen: 0.26, earClosed: 0.1, headPitch: -8.6 };
+const BASELINE: Baseline = { blinkOpen: 0.2, blinkClosed: 0.55, earOpen: 0.26, earClosed: 0.1, headPitch: 8.6 };
 
 function frame(t: number, pitch: number): ComputerVisionObservation {
   return {
@@ -29,27 +29,26 @@ function motion(head: ReturnType<typeof createHeadTracker>, points: [number, num
 describe('createHeadTracker', () => {
   it('унжаад гэнэт өндийсөн дохилтыг тоолно', () => {
     const head = createHeadTracker();
-    // Хэмжилт: шулуун −8.6°-оос −38° хүртэл 0.75 сек, буцаж 0.4 сек
-    expect(motion(head, [[0, -8.6], [1_000, -8.6], [1_750, -38], [2_150, -8.6], [3_000, -8.6]]).quickNods).toBe(1);
+    expect(motion(head, [[0, 8.6], [1_000, 8.6], [1_750, 38], [2_150, 8.6], [3_000, 8.6]]).quickNods).toBe(1);
   });
 
   it('утас руу удаан доош харахыг дохилт гэж тоолохгүй', () => {
     const head = createHeadTracker();
-    const state = motion(head, [[0, -8.6], [800, -33], [6_000, -33], [7_500, -8.6], [8_000, -8.6]]);
+    const state = motion(head, [[0, 8.6], [800, 33], [6_000, 33], [7_500, 8.6], [8_000, 8.6]]);
     expect(state.quickNods).toBe(0);
   });
 
   it('удаан унжсан үед droopMs өснө', () => {
     const head = createHeadTracker();
-    const state = motion(head, [[0, -8.6], [500, -38.6], [2_500, -38.6]]);
+    const state = motion(head, [[0, 8.6], [500, 38.6], [2_500, 38.6]]);
     expect(state.droopMs).toBeGreaterThan(1_700);
     expect(state.downDeg).toBeCloseTo(30, 0);
   });
 
   it('дээш харах, суурийн ойролцоо хазайлт дохилт биш', () => {
     const head = createHeadTracker();
-    // Дээш харах (pitch өснө) ба суурийн ойролцоо бага хазайлт
-    const state = motion(head, [[0, -8.6], [700, 20], [1_200, -8.6], [2_000, -15], [2_400, -8.6], [3_000, -8.6]]);
+    // Дээш харах (pitch буурна) ба суурийн ойролцоо бага хазайлт
+    const state = motion(head, [[0, 8.6], [700, -20], [1_200, 8.6], [2_000, 15], [2_400, 8.6], [3_000, 8.6]]);
     expect(state.downDeg).toBeCloseTo(0, 5);
     expect(state.droopMs).toBe(0);
     expect(state.quickNods).toBe(0);

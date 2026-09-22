@@ -1,95 +1,132 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { colors } from "../theme";
+import type { SessionSummary } from "../types";
 
-export function AdviceScreen({ onBack }: { onBack: () => void }) {
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
+
+export function AdviceScreen({
+  summary,
+  onBack,
+}: {
+  summary: SessionSummary;
+  onBack: () => void;
+}) {
+  const [advice, setAdvice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAdvice = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/rag/advice`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId: `session-${Date.now()}`,
+            driverId: 1,
+            fatigueScore: summary.maxScore,
+            averageFatigueScore: summary.avgScore,
+            maxFatigueScore: summary.maxScore,
+            driveDurationMinutes: Math.max(
+              1,
+              Math.round(summary.durationSeconds / 60),
+            ),
+            prolongedEyeClosureCount: Math.max(0, summary.criticalCount),
+            headNodCount: Math.max(0, summary.warningCount),
+            perclos: 0.21,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(
+            payload?.error ?? `Request failed (${response.status})`,
+          );
+        }
+
+        const payload = await response.json();
+        const nextAdvice =
+          typeof payload?.advice === "string" &&
+          payload.advice.trim().length > 0
+            ? payload.advice
+            : "No safety advice was returned from the backend.";
+
+        if (isMounted) setAdvice(nextAdvice);
+      } catch (fetchError) {
+        if (!isMounted) return;
+
+        const message =
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Unable to load driver guidance.";
+        setError(message);
+        setAdvice(
+          "Take a break and find a safe stopping area before continuing to drive.",
+        );
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    void loadAdvice();
+    return () => {
+      isMounted = false;
+    };
+  }, [summary]);
+
   return (
     <View style={styles.screen}>
-      <View style={styles.topPill}>
-        <Text style={styles.topPillText}>
-          ragii tusad ni file bolgoh hadgalah uu
-        </Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>AI guidance</Text>
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.paragraph}>
-          <Text style={styles.textPrimary}>
-            Тийм, тусдаа файл болох нь зөв. Одоо RAG дэлгэц апп-ын үндсэн
-            файл{" "}
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.card}>
+          <Text style={styles.label}>Driver fatigue summary</Text>
+          <Text style={styles.metricLine}>
+            Max score: {summary.maxScore} · Avg score: {summary.avgScore}
           </Text>
-          <Text style={styles.inlineCode}>index.tsx</Text>
-          <Text style={styles.textPrimary}> -ээс авалж тул жоолоодогын.</Text>
-        </Text>
-
-        <Text style={styles.paragraph}>Хийх зүйл:</Text>
-
-        <Text style={styles.listItem}>
-          <Text style={styles.number}>1.</Text>
-          <Text style={styles.textPrimary}> RAG дэлгэцийг </Text>
-          <Text style={styles.inlineLink}>
-            src/fatigueguard/screens/AdviceScreen.tsx
+          <Text style={styles.metricLine}>
+            Duration: {Math.floor(summary.durationSeconds / 60)}m{" "}
+            {summary.durationSeconds % 60}s
           </Text>
-          <Text style={styles.textPrimary}>
-            {" "}
-            болгож зөөн. Код өвөрлэгдэхгүй, зохих байршин солигдоно.
-          </Text>
-        </Text>
+        </View>
 
-        <Text style={styles.listItem}>
-          <Text style={styles.number}>2.</Text>
-          <Text style={styles.inlineCode}>index.tsx</Text>
-          <Text style={styles.textPrimary}>
-            {" "}
-            -ийг #21-аас өмнөх хувилбараар сэргээх: камер, калибраци,
-            жолоодлого, дохио, sync.
-          </Text>
-        </Text>
-
-        <Text style={styles.listItem}>
-          <Text style={styles.number}>3.</Text>
-          <Text style={styles.textPrimary}>
-            {" "}
-            AdviceScreen-ийн үрсгэлд холбох. Хамгийн тохиромжтой нь аяллын
-            дүнгийн дэлгэц дээр «AI зөвлөгөө» товч: жолоодлого дууссаны дараа,
-            машин зогссон үед нэгтгэнэ. Жолоо барих үед харагдахгүй.
-          </Text>
-        </Text>
-
-        <Text style={styles.paragraph}>
-          <Text style={styles.textPrimary}>Анхаарах: RAG дэлгэц нь </Text>
-          <Text style={styles.inlineCode}>zaaanm7-ий</Text>
-          <Text style={styles.textPrimary}>, </Text>
-          <Text style={styles.inlineCode}>index.tsx</Text>
-          <Text style={styles.textPrimary}>
-            {" "}
-            -ийн UI-тай айлж. Засвар хийсээд өмнө эдгээр нөхцлөөр айлтагаагаа
-            зөрчидоно.
-          </Text>
-        </Text>
-
-        <View style={styles.metaRow}>
-          <View style={styles.metaActions}>
-            <Text style={styles.metaIcon}>◫</Text>
-            <Text style={styles.metaIcon}>⟲</Text>
-            <Text style={styles.metaIcon}>⎇</Text>
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={colors.primary} size="small" />
+            <Text style={styles.loadingText}>Loading AI guidance...</Text>
           </View>
-          <Text style={styles.metaTime}>3 minutes ago</Text>
-        </View>
-      </View>
+        ) : null}
 
-      <View style={styles.bottomBar}>
-        <Text style={styles.branchText}>sergeg main</Text>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <View style={styles.actionsRow}>
-          <Text style={styles.diffText}>+2,556 -118</Text>
-          <Pressable
-            style={styles.prButton}
-            accessibilityRole="button"
-            onPress={onBack}
-          >
-            <Text style={styles.prButtonText}>Back</Text>
-          </Pressable>
-          <Text style={styles.closeIcon}>×</Text>
-        </View>
-      </View>
+        {advice ? (
+          <View style={styles.adviceBox}>
+            <Text style={styles.adviceTitle}>Recommended action</Text>
+            <Text style={styles.adviceText}>{advice}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -97,133 +134,95 @@ export function AdviceScreen({ onBack }: { onBack: () => void }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#0b1117",
+    backgroundColor: colors.background,
     paddingTop: 18,
     paddingHorizontal: 18,
     paddingBottom: 12,
   },
-  topPill: {
-    alignSelf: "flex-end",
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    marginTop: 8,
-    marginBottom: 28,
-  },
-  topPillText: {
-    color: "#f3f4f6",
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: "500",
-  },
-  content: {
-    flex: 1,
-    paddingLeft: 6,
-    paddingTop: 8,
-  },
-  paragraph: {
-    color: "#ebedf0",
-    fontSize: 18,
-    lineHeight: 34,
-    marginBottom: 12,
-  },
-  textPrimary: {
-    color: "#ebedf0",
-  },
-  inlineCode: {
-    color: "#ef7f7f",
-    backgroundColor: "rgba(239, 127, 127, 0.1)",
-    borderRadius: 6,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    fontFamily: "monospace",
-  },
-  inlineLink: {
-    color: "#6ec8ff",
-    textDecorationLine: "underline",
-    textDecorationColor: "#6ec8ff",
-  },
-  listItem: {
-    color: "#ebedf0",
-    fontSize: 18,
-    lineHeight: 34,
-    marginBottom: 12,
-  },
-  number: {
-    color: "#ebedf0",
-    fontWeight: "700",
-    marginRight: 8,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 20,
-    opacity: 0.8,
-  },
-  metaActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginRight: 18,
-  },
-  metaIcon: {
-    color: "#d1d5db",
-    fontSize: 17,
-    opacity: 0.9,
-  },
-  metaTime: {
-    color: "#cbd5e1",
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  bottomBar: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(17, 24, 39, 0.9)",
+    marginBottom: 18,
+  },
+  title: {
+    color: colors.text,
+    fontSize: 26,
+    fontWeight: "800",
+  },
+  backButton: {
+    backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.12)",
+    borderColor: colors.border,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  branchText: {
-    color: "#d1d5db",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  diffText: {
-    color: "#34d399",
+  backButtonText: {
+    color: colors.text,
     fontSize: 14,
     fontWeight: "700",
-    marginRight: 12,
   },
-  prButton: {
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  content: {
+    gap: 14,
+    paddingBottom: 24,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 12,
+    borderRadius: 16,
+    padding: 16,
   },
-  prButtonText: {
-    color: "#f8fafc",
+  label: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  metricLine: {
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  loadingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 18,
+  },
+  loadingText: {
+    color: colors.textSecondary,
     fontSize: 14,
-    fontWeight: "600",
   },
-  closeIcon: {
-    color: "#d1d5db",
-    fontSize: 22,
-    lineHeight: 22,
-    fontWeight: "400",
+  errorText: {
+    color: "#fca5a5",
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderColor: "rgba(239, 68, 68, 0.2)",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
+  },
+  adviceBox: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+  },
+  adviceTitle: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  adviceText: {
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 24,
   },
 });

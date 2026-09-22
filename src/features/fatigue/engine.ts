@@ -1,6 +1,7 @@
 import type { ComputerVisionObservation, VisionStatus } from '@/features/computer-vision';
 import { evaluateFaceQuality } from '@/features/computer-vision/face-quality';
 
+import { type BaselineTracker, createBaselineTracker } from './baseline-tracker';
 import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
 import { createEyeTracker } from './eyes';
 import { createHeadTracker } from './head';
@@ -11,7 +12,8 @@ export type { FatigueLevel };
 
 /** Толгой ийм их бөхийсөн үед eyeBlink найдваргүй (хэмжилт) — анилтыг тоолохгүй. */
 const HEAD_DOWN_IGNORE_EYES_DEG = 15;
-const MAX_CALIBRATION_FRAME_GAP_MS = 500;
+/** Baseline-ийн маш жижиг алхам бүр UI-г дахин render хийхээс хамгаална. */
+const BASELINE_PUBLISH_DELTA_DEG = 0.25;
 
 export type FatigueEvent = Readonly<{
   id: string;
@@ -51,7 +53,7 @@ export function createFatigueEngine({
     level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null,
   };
   let samples: ComputerVisionObservation[] = [];
-  let lastCalibrationTimestamp: number | null = null;
+  let baselineTracker: BaselineTracker | null = null;
   let eyes = createEyeTracker();
   let head = createHeadTracker();
   let yawn = createYawnTracker();
@@ -88,13 +90,25 @@ export function createFatigueEngine({
     const escalated = level !== state.level && level !== 'normal';
     if (escalated) record(level === 'critical' ? 'fatigue_critical' : 'fatigue_warning');
     update({ score, level });
+    return level;
   };
 
   return {
     accept(observation: ComputerVisionObservation) {
       const monitoring = state.cameraStatus === 'running' && observation.faceDetected;
       if (monitoring !== state.monitoring) update({ monitoring });
-      if (state.calibration === 'done' && state.baseline !== null) assess(observation, state.baseline);
+      if (state.calibration === 'done' && state.baseline !== null) {
+        const currentBaseline = baselineTracker?.current() ?? state.baseline;
+        const level = assess(observation, currentBaseline);
+        // Зөвхөн хэвийн төлөвт жижиг camera/seat drift-ийг дагуулна. Warning эсвэл
+        // critical үеийн байрлалыг хэвийн baseline болгож сурахгүй.
+        if (level === 'normal' && baselineTracker !== null) {
+          const adjusted = baselineTracker.update(observation);
+          if (Math.abs(adjusted.headPitch - state.baseline.headPitch) >= BASELINE_PUBLISH_DELTA_DEG) {
+            update({ baseline: adjusted });
+          }
+        }
+      }
       if (state.calibration !== 'running') return;
 
       // Буруу байрласан/эргэж харсан нүүрний өгөгдлөөр baseline үүсгэхгүй.
@@ -113,14 +127,14 @@ export function createFatigueEngine({
       if (elapsed < CALIBRATION_MS) return;
       const baseline = calibrate(samples);
       samples = [];
-      lastCalibrationTimestamp = null;
-      update({ baseline, calibration: baseline ? 'done' : 'failed', calibrationProgress: baseline ? 1 : 0 });
+      baselineTracker = baseline === null ? null : createBaselineTracker(baseline);
+      update({ baseline, calibration: baseline ? 'done' : 'failed' });
     },
 
     /** Жолоочоос шулуун харж, хэвийн анивчихыг хүсээд дуудна. */
     startCalibration() {
       samples = [];
-      lastCalibrationTimestamp = null;
+      baselineTracker = null;
       events.length = 0; // өмнөх аяллын явдал шинэ аяллын дүнд орохгүй
       eyes = createEyeTracker();
       head = createHeadTracker();

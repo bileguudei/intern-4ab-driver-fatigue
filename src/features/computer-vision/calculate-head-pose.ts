@@ -28,7 +28,9 @@ export function calculateHeadPose(matrix: readonly number[]): HeadPose | null {
   const rollRadians = Math.atan2(r10, r00);
 
   return {
-    pitch: toDegrees(pitchRadians),
+    // MediaPipe-ийн front-camera matrix дээр доош харахад raw pitch буурдаг.
+    // Нийтийн contract: pitch эерэг = жолооч доош харсан.
+    pitch: toDegrees(-pitchRadians),
     yaw: toDegrees(yawRadians),
     roll: toDegrees(rollRadians),
   };
