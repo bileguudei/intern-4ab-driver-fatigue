@@ -152,7 +152,9 @@ export default function GuardApp() {
       />
     );
   } else if (route.screen === "advice") {
-    screen = <AdviceScreen onBack={() => showFlow("summary")} />;
+    screen = (
+      <AdviceScreen summary={summary} onBack={() => showFlow("summary")} />
+    );
   }
 
   return (
