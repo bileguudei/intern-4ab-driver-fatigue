@@ -1,80 +1,92 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  ComputerVisionCamera,
-  getComputerVisionCameraPermissionStatus,
-  requestComputerVisionCameraPermission,
-  type CameraPermissionStatus,
-  type ComputerVisionObservation,
-  type VisionStatus,
+  ComputerVisionCamera, evaluateFaceQuality, faceQualityMessage,
+  getComputerVisionCameraPermissionStatus, requestComputerVisionCameraPermission,
+  type CameraPermissionStatus, type ComputerVisionObservation, type FaceQuality,
 } from '@/features/computer-vision';
-import { Card, Header, PrimaryButton, SectionTitle } from '../components/ui';
+import { PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
 
-type Conditions = { face: boolean; light: boolean; position: boolean };
-
-const notReady: Conditions = { face: false, light: false, position: false };
-
-const MINIMUM_BRIGHTNESS = 0.25;
-const MAXIMUM_HEAD_ANGLE_DEGREES = 20;
-
-function readConditions(observation: ComputerVisionObservation): Conditions {
-  const { faceDetected, brightness, headPose } = observation;
-
-  return {
-    face: faceDetected,
-    light: brightness !== null && brightness >= MINIMUM_BRIGHTNESS,
-    position:
-      faceDetected &&
-      headPose !== null &&
-      Math.abs(headPose.yaw) <= MAXIMUM_HEAD_ANGLE_DEGREES &&
-      Math.abs(headPose.pitch) <= MAXIMUM_HEAD_ANGLE_DEGREES,
-  };
-}
-
-function isSame(current: Conditions, next: Conditions): boolean {
-  return current.face === next.face && current.light === next.light && current.position === next.position;
-}
-
-function Condition({ icon, label, good, bad, value, advisory = false }: { icon: string; label: string; good: string; bad: string; value: boolean; advisory?: boolean }) { const badColor = advisory ? colors.warning : colors.critical; return <Card style={styles.condition}><Text style={styles.conditionIcon}>{icon}</Text><Text style={styles.conditionLabel}>{label}</Text><Text style={[styles.conditionValue, { color: value ? colors.normal : badColor }]}>{value ? `✓ ${good}` : `! ${bad}`}</Text></Card>; }
+const REQUIRED_STABLE_MS = 1_500;
 
 export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; onContinue: () => void }) {
   const [permission, setPermission] = useState<CameraPermissionStatus | null>(null);
-  const [conditions, setConditions] = useState<Conditions>(notReady);
-  const [status, setStatus] = useState<VisionStatus>('idle');
+  const [quality, setQuality] = useState<FaceQuality>({ ready: false, issue: 'no-face' });
+  const [stableMs, setStableMs] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const readySince = useRef<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    getComputerVisionCameraPermissionStatus().then((current) => {
-      if (!cancelled) {
-        setPermission(current);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useEffect(() => { getComputerVisionCameraPermissionStatus().then(setPermission); }, []);
 
   const handleObservation = useCallback((observation: ComputerVisionObservation) => {
-    const next = readConditions(observation);
-    setConditions((current) => (isSame(current, next) ? current : next));
+    const next = evaluateFaceQuality(observation);
+    setQuality(next);
+    if (!next.ready) {
+      readySince.current = null;
+      setStableMs(0);
+      return;
+    }
+    readySince.current ??= observation.timestampMs;
+    setStableMs(observation.timestampMs - readySince.current);
   }, []);
 
-  const handleRequestPermission = useCallback(async () => {
+  const requestPermission = async () => {
     setCameraError(null);
     setPermission(await requestComputerVisionCameraPermission());
-  }, []);
-
+  };
   const granted = permission === 'granted';
-  // Шөнө гудамжны гэрэлд нүүр харагдаж байсан ч зургийн дундаж гэрэл бага гардаг.
-  // Нойрмоглолт ихэвчлэн шөнө тул гэрлийг хаах нөхцөл биш, анхааруулга болгов.
-  const canContinue = conditions.face && conditions.position;
-  const waitingForCamera = status !== 'running' && cameraError === null;
+  const canContinue = quality.ready && stableMs >= REQUIRED_STABLE_MS;
+  const message = cameraError ?? (canContinue ? 'Нүүр зөв байрлалаа' : quality.issue ? faceQualityMessage[quality.issue] : 'Тогтвортой байна уу');
 
-  return <View style={styles.screen}><Header title="Камераа тохируулна уу" onBack={onBack} badge="1 / 2" /><ScrollView contentContainerStyle={styles.content}><Text style={styles.help}>Таны нүүр болон нүд бүрэн харагдах шаардлагатай.</Text><View style={[styles.preview, !conditions.face && styles.previewBad]}>{granted ? <><ComputerVisionCamera active style={StyleSheet.absoluteFill} onObservation={handleObservation} onStatusChange={setStatus} onError={(error) => setCameraError(error.message)} /><View pointerEvents="none" style={styles.cameraShade} /><View pointerEvents="none" style={styles.faceFrame} />{waitingForCamera ? <ActivityIndicator color={colors.primary} size="large" /> : null}<View pointerEvents="none" style={styles.previewStatus}><Text style={[styles.previewTitle, !conditions.face && { color: colors.critical }]}>{cameraError ? 'Камер ассангүй' : conditions.face ? 'Нүүрээ хүрээнд байрлуулна уу' : 'Нүүр илэрсэнгүй'}</Text><Text style={styles.previewText}>{cameraError ?? 'Утсаа нүүрний төвд тогтвортой байрлуулна уу'}</Text></View></> : <View style={styles.permissionBox}>{permission === null ? <ActivityIndicator color={colors.primary} size="large" /> : <><Text style={styles.permissionIcon}>◉</Text><Text style={styles.permissionTitle}>Камерын зөвшөөрөл хэрэгтэй</Text><Text style={styles.permissionText}>Жолоочийн нүүр болон нүдийг харахын тулд камер ашиглана.</Text><Pressable onPress={handleRequestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Камер зөвшөөрөх</Text></Pressable></>}</View>}</View><SectionTitle>Нөхцлийн шалгалт</SectionTitle><Condition icon="☺" label="Нүүр харагдаж байна" good="Тодорхой" bad="Илрэхгүй байна" value={conditions.face} /><Condition icon="☀" label="Гэрэлтүүлэг" good="Сайн" bad="Бага — нарийвчлал буурч магадгүй" value={conditions.light} advisory /><Condition icon="▣" label="Утасны байрлал" good="Сайн" bad="Тохируулна уу" value={conditions.position} /></ScrollView><View style={styles.footer}>{!canContinue ? <Text style={styles.warning}>⚠ Нүүр харагдаж, утас зөв байрласны дараа үргэлжлүүлнэ үү</Text> : !conditions.light ? <Text style={styles.warning}>⚠ Гэрэл бага байна. Нүүр илэрч байгаа тул үргэлжлүүлж болно</Text> : null}<PrimaryButton label="Үргэлжлүүлэх →" onPress={onContinue} disabled={!canContinue} /></View></View>;
+  return (
+    <View style={styles.screen}>
+      {granted ? <ComputerVisionCamera active style={StyleSheet.absoluteFill} onObservation={handleObservation} onError={(error) => setCameraError(error.message)} /> : null}
+      <View pointerEvents="none" style={styles.shade} />
+      <View style={styles.topBar}>
+        <Pressable onPress={onBack} style={styles.circleButton}><Text style={styles.backText}>‹</Text></Pressable>
+        <View><Text style={styles.step}>АЛХАМ 1 / 2</Text><Text style={styles.title}>Нүүрээ тааруулна уу</Text></View>
+        <View style={styles.circleButton} />
+      </View>
+
+      <View pointerEvents="none" style={[styles.faceFrame, canContinue && styles.faceFrameReady]} />
+
+      {!granted ? <View style={styles.permissionBox}>
+        {permission === null ? <ActivityIndicator color={colors.primary} size="large" /> : <>
+          <Text style={styles.permissionTitle}>Камерын зөвшөөрөл хэрэгтэй</Text>
+          <Text style={styles.permissionText}>Нүүр, нүд болон толгойн байрлалыг төхөөрөмж дээр шалгана.</Text>
+          <Pressable onPress={requestPermission} style={styles.permissionButton}><Text style={styles.permissionButtonText}>Камер зөвшөөрөх</Text></Pressable>
+        </>}
+      </View> : null}
+
+      <View style={styles.bottomPanel}>
+        <Text style={[styles.status, { color: canContinue ? colors.normal : colors.warning }]}>{canContinue ? '✓ ' : ''}{message}</Text>
+        <Text style={styles.hint}>Нүүр бүхэлдээ хүрээнд, хоёр нүд ил, толгой эгц байх ёстой.</Text>
+        <View style={styles.checks}>
+          <Check label="Нүүр" good={quality.issue !== 'no-face'} />
+          <Check label="Төв" good={!['no-face', 'too-far', 'too-close', 'off-center'].includes(quality.issue ?? '')} />
+          <Check label="Харц" good={quality.ready} />
+        </View>
+        <PrimaryButton label={canContinue ? 'Үргэлжлүүлэх →' : 'Нүүрээ хүрээнд тогтвортой барина уу'} onPress={onContinue} disabled={!canContinue} />
+      </View>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({ screen: { flex: 1 }, content: { paddingHorizontal: 20, paddingBottom: 20 }, help: { color: colors.textMuted, fontSize: 14, marginBottom: 18 }, preview: { height: 240, borderRadius: 22, borderWidth: 2, borderColor: colors.normal, backgroundColor: '#0D1625', justifyContent: 'center', alignItems: 'center', marginBottom: 24, overflow: 'hidden' }, previewBad: { borderColor: colors.critical }, cameraShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#00000018' }, faceFrame: { width: 130, height: 172, borderRadius: 66, borderColor: colors.primary, borderWidth: 2, backgroundColor: 'transparent' }, previewStatus: { position: 'absolute', left: 12, right: 12, bottom: 12, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: '#0A0E1ACC', alignItems: 'center' }, previewTitle: { color: colors.text, fontWeight: '700', fontSize: 14 }, previewText: { color: colors.textMuted, fontSize: 12, marginTop: 5 }, permissionBox: { paddingHorizontal: 28, alignItems: 'center' }, permissionIcon: { color: colors.primary, fontSize: 40 }, permissionTitle: { color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 10 }, permissionText: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 }, permissionButton: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11, marginTop: 14 }, permissionButtonText: { color: colors.white, fontWeight: '700' }, condition: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 13 }, conditionIcon: { color: colors.textSecondary, fontSize: 22, width: 34 }, conditionLabel: { color: colors.text, flex: 1, fontSize: 14, fontWeight: '600' }, conditionValue: { fontSize: 12, fontWeight: '700' }, footer: { padding: 20, borderTopColor: colors.border, borderTopWidth: 1, backgroundColor: colors.background }, warning: { color: colors.warning, backgroundColor: colors.warningDark, borderRadius: 10, padding: 10, marginBottom: 10, fontSize: 12 } });
+function Check({ label, good }: { label: string; good: boolean }) {
+  return <View style={styles.check}><Text style={{ color: good ? colors.normal : '#FFFFFF70' }}>{good ? '●' : '○'}</Text><Text style={styles.checkLabel}>{label}</Text></View>;
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#050A12' }, shade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#00000030' },
+  topBar: { paddingHorizontal: 16, paddingTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  circleButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#07111CCC', alignItems: 'center', justifyContent: 'center' }, backText: { color: colors.white, fontSize: 34, lineHeight: 38 },
+  step: { color: '#FFFFFFB8', fontSize: 10, fontWeight: '800', letterSpacing: 1, textAlign: 'center' }, title: { color: colors.white, fontSize: 19, fontWeight: '800', textAlign: 'center', marginTop: 2 },
+  faceFrame: { position: 'absolute', alignSelf: 'center', top: '17%', width: '70%', height: '49%', borderRadius: 150, borderWidth: 3, borderColor: colors.warning }, faceFrameReady: { borderColor: colors.normal },
+  permissionBox: { position: 'absolute', left: 28, right: 28, top: '32%', padding: 22, borderRadius: 20, backgroundColor: '#07111CEF', alignItems: 'center' },
+  permissionTitle: { color: colors.white, fontSize: 18, fontWeight: '800' }, permissionText: { color: '#FFFFFFA8', textAlign: 'center', lineHeight: 19, marginTop: 8 },
+  permissionButton: { marginTop: 16, backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 13 }, permissionButtonText: { color: colors.white, fontWeight: '800' },
+  bottomPanel: { position: 'absolute', left: 16, right: 16, bottom: 16, padding: 18, borderRadius: 22, backgroundColor: '#07111CEF', borderWidth: 1, borderColor: '#FFFFFF24' },
+  status: { fontSize: 18, fontWeight: '800', textAlign: 'center' }, hint: { color: '#FFFFFFA8', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
+  checks: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginVertical: 14 }, check: { flexDirection: 'row', alignItems: 'center', gap: 5 }, checkLabel: { color: colors.white, fontSize: 12, fontWeight: '700' },
+});

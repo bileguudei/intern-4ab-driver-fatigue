@@ -12,10 +12,21 @@ export type HeadPose = Readonly<{
   roll: number;
 }>;
 
+export type FaceBounds = Readonly<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+}>;
+
 export type ComputerVisionObservation = Readonly<{
   timestampMs: number;
   faceDetected: boolean;
   faceConfidence: number | null;
+  /** Full camera image дэх нүүрний normalized хүрээ (0...1). */
+  faceBounds: FaceBounds | null;
   leftEar: number | null;
   rightEar: number | null;
   averageEar: number | null;

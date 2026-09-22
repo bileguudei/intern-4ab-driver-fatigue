@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StatusBar, StyleSheet, View } from "react-native";
 import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ComputerVisionCamera } from "@/features/computer-vision";
 import { createFatigueEngine } from "@/features/fatigue/engine";
 import { FatigueAlarm } from "@/features/fatigue/fatigue-alarm";
 import { KeepScreenAwake } from "@/features/fatigue/keep-screen-awake";
@@ -185,5 +184,4 @@ export default function GuardApp() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   app: { flex: 1, backgroundColor: colors.background },
-  monitorCamera: { position: "absolute", width: 1, height: 1, opacity: 0 },
 });

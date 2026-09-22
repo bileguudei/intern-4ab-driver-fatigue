@@ -12,7 +12,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Жолоочийн ядаргааг хянахын тулд камер ашиглана."
       },
-      "bundleIdentifier": "com.anonymous.driverfatigue"
+      "bundleIdentifier": "com.nomin0813.driver-fatigue"
     },
     "android": {
       "adaptiveIcon": {
@@ -51,6 +51,21 @@
       ],
       "expo-sqlite",
       "expo-secure-store",
+      "./plugins/with-local-notifications-only",
+      [
+        "expo-notifications",
+        {
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
+      ],
       "expo-asset"
     ],
     "experiments": {

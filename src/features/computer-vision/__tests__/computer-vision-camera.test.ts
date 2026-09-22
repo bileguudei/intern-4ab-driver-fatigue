@@ -18,6 +18,7 @@ describe('toComputerVisionObservation', () => {
       timestampMs: 123,
       faceDetected: false,
       faceConfidence: null,
+      faceBounds: null,
       leftEar: null,
       rightEar: null,
       averageEar: null,

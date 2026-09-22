@@ -14,6 +14,23 @@ function clampUnitInterval(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function calculateFaceBounds(landmarks: FaceLandmarkerFrameResult['landmarks']) {
+  if (!landmarks?.length) return null;
+  const xs = landmarks.map((point) => point.x).filter(Number.isFinite);
+  const ys = landmarks.map((point) => point.y).filter(Number.isFinite);
+  if (xs.length === 0 || ys.length === 0) return null;
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  return {
+    x: clampUnitInterval(minX),
+    y: clampUnitInterval(minY),
+    width: clampUnitInterval(maxX - minX),
+    height: clampUnitInterval(maxY - minY),
+    centerX: clampUnitInterval((minX + maxX) / 2),
+    centerY: clampUnitInterval((minY + maxY) / 2),
+  };
+}
+
 export function createComputerVisionObservation(
   result: FaceLandmarkerFrameResult,
 ): ComputerVisionObservation {
@@ -39,6 +56,7 @@ export function createComputerVisionObservation(
       result.faceConfidence === null
         ? null
         : clampUnitInterval(result.faceConfidence),
+    faceBounds: calculateFaceBounds(landmarks),
     leftEar,
     rightEar,
     averageEar: calculateAverageEar(leftEar, rightEar),
