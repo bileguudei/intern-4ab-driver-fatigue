@@ -1,88 +1,173 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, StatusBar, StyleSheet, View } from 'react-native';
-import * as Network from 'expo-network';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ComputerVisionCamera } from '@/features/computer-vision';
-import { createFatigueEngine } from '@/features/fatigue/engine';
-import { FatigueAlarm } from '@/features/fatigue/fatigue-alarm';
-import { KeepScreenAwake } from '@/features/fatigue/keep-screen-awake';
-import { BottomNav } from '@/fatigueguard/components/BottomNav';
-import { CalibrationScreen } from '@/fatigueguard/screens/CalibrationScreen';
-import { CameraSetupScreen } from '@/fatigueguard/screens/CameraSetupScreen';
-import { DrivingScreen } from '@/fatigueguard/screens/DrivingScreen';
-import { HistoryScreen } from '@/fatigueguard/screens/HistoryScreen';
-import { HomeScreen } from '@/fatigueguard/screens/HomeScreen';
-import { SessionSummaryScreen } from '@/fatigueguard/screens/SessionSummaryScreen';
-import { SettingsScreen } from '@/fatigueguard/screens/SettingsScreen';
-import { colors } from '@/fatigueguard/theme';
-import type { Route, SessionSummary, TabName } from '@/fatigueguard/types';
-import { addLocalFatigueEvent, completeLocalSession, createLocalSession } from '@/data/local-db';
-import { syncPendingData } from '@/data/sync';
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
 
-const emptySummary: SessionSummary = { durationSeconds: 0, warningCount: 0, criticalCount: 0, maxScore: 24, avgScore: 24 };
+const recommendations = [
+  "Pull over at the nearest safe stop and rest for 15–20 minutes.",
+  "Drink water and cool down before continuing the drive.",
+  "Avoid long stretches of night driving until the fatigue level drops.",
+];
 
 export default function GuardApp() {
-  const [route, setRoute] = useState<Route>({ kind: 'tabs', tab: 'home' });
-  const [summary, setSummary] = useState<SessionSummary>(emptySummary);
-  const activeSessionClientId = useRef<string | null>(null);
-  // Калибраци, жолоодлогын турш нэг engine, нэг камер. Камерыг дэлгэц бүрт
-  // тусад нь байрлуулбал солигдох бүрд ~1 сек унтарч, калибраци тасарна.
-  const engine = useMemo(() => createFatigueEngine(), []);
-  useEffect(() => {
-    void syncPendingData().catch((error) => console.warn('Background sync unavailable:', error));
-    const networkSubscription = Network.addNetworkStateListener(({ isConnected }) => {
-      if (isConnected) void syncPendingData().catch((error) => console.warn('Background sync unavailable:', error));
-    });
-    const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void syncPendingData().catch((error) => console.warn('Background sync unavailable:', error));
-    });
-    return () => {
-      networkSubscription.remove();
-      appStateSubscription.remove();
-    };
-  }, []);
-  const monitoring = route.kind === 'flow' && (route.screen === 'calibration' || route.screen === 'driving');
-  const keepAwake = route.kind === 'flow' && route.screen !== 'summary';
-  const showTab = (tab: TabName) => setRoute({ kind: 'tabs', tab });
-  const showFlow = (screen: 'camera' | 'calibration' | 'driving' | 'summary') => setRoute({ kind: 'flow', screen });
-  const handleCalibrationComplete = async () => {
-    const session = await createLocalSession();
-    activeSessionClientId.current = session.clientId;
-    showFlow('driving');
-  };
-  const handleFinish = async (data: SessionSummary) => {
-    const clientId = activeSessionClientId.current;
-    if (clientId) {
-      await completeLocalSession(clientId, {
-        endedAt: new Date().toISOString(),
-        fatigueScore: data.maxScore,
-        warningCount: data.warningCount,
-        criticalEventCount: data.criticalCount,
-      });
-      for (const event of engine.getEvents()) {
-        if (event.type !== 'fatigue_warning' && event.type !== 'fatigue_critical') continue;
-        await addLocalFatigueEvent({
-          client_id: `event:${event.id}`,
-          session_client_id: clientId,
-          driver_id: 1,
-          level: event.type === 'fatigue_warning' ? 'warning' : 'critical',
-          fatigue_score: null,
-          event_at: new Date(event.occurredAt).toISOString(),
-          metadata_json: null,
-        });
-      }
-      void syncPendingData().catch((error) => console.warn('Session sync deferred:', error));
-    }
-    setSummary(data);
-    showFlow('summary');
-  };
-  let screen: React.ReactNode;
-  if (route.kind === 'tabs') screen = route.tab === 'home' ? <HomeScreen onStart={() => showFlow('camera')} /> : route.tab === 'history' ? <HistoryScreen /> : <SettingsScreen />;
-  else if (route.screen === 'camera') screen = <CameraSetupScreen onBack={() => showTab('home')} onContinue={() => showFlow('calibration')} />;
-  else if (route.screen === 'calibration') screen = <CalibrationScreen engine={engine} onBack={() => showFlow('camera')} onComplete={handleCalibrationComplete} />;
-  else if (route.screen === 'driving') screen = <DrivingScreen engine={engine} onFinish={handleFinish} />;
-  else screen = <SessionSummaryScreen data={summary} onHome={() => showTab('home')} />;
-  return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content" backgroundColor={colors.background} /><View style={styles.app}>{keepAwake ? <KeepScreenAwake /> : null}{route.kind === 'flow' && route.screen === 'driving' ? <FatigueAlarm engine={engine} /> : null}{monitoring ? <ComputerVisionCamera active style={styles.monitorCamera} onObservation={engine.accept} onStatusChange={engine.onCameraStatus} /> : null}{screen}{route.kind === 'tabs' ? <BottomNav active={route.tab} onChange={showTab} /> : null}</View></SafeAreaView>;
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f3f3f3" />
+      <View style={styles.page}>
+        <View style={styles.card}>
+          <Text style={styles.badge}>RAG AI guidance</Text>
+          <Text style={styles.title}>Driver recommendations</Text>
+
+          <Text style={styles.subtitle}>Current fatigue state</Text>
+          <Text style={styles.body}>
+            Based on the latest driving indicators, the system recommends a
+            short break and a lower-risk driving plan.
+          </Text>
+
+          <View style={styles.priorityBox}>
+            <Text style={styles.priorityLabel}>Priority action</Text>
+            <Text style={styles.priorityText}>
+              Find a safe stopping point and take a rest break immediately.
+            </Text>
+          </View>
+
+          <Text style={styles.sectionTitle}>Recommended actions</Text>
+          {recommendations.map((item, index) => (
+            <View key={item} style={styles.row}>
+              <Text style={styles.check}>{index + 1}</Text>
+              <Text style={styles.itemText}>{item}</Text>
+            </View>
+          ))}
+
+          <Pressable style={styles.primaryButton} accessibilityRole="button">
+            <Text style={styles.primaryButtonText}>
+              Continue driving safely
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
 }
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.background }, app: { flex: 1, backgroundColor: colors.background }, monitorCamera: { position: 'absolute', width: 1, height: 1, opacity: 0 } });
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f3f3f3",
+  },
+  page: {
+    flex: 1,
+    backgroundColor: "#f3f3f3",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 640,
+    backgroundColor: "#f7f7f7",
+    borderColor: "#d7d7d7",
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  badge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#eaf7ef",
+    color: "#2a7a54",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 18,
+  },
+  title: {
+    color: "#1d1d1f",
+    fontSize: 30,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  subtitle: {
+    color: "#4d4d52",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  body: {
+    color: "#4a4a4a",
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 18,
+  },
+  priorityBox: {
+    backgroundColor: "#fff7e8",
+    borderLeftWidth: 4,
+    borderLeftColor: "#f59e0b",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 18,
+  },
+  priorityLabel: {
+    color: "#8a5b00",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  priorityText: {
+    color: "#2d2d2d",
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
+  },
+  sectionTitle: {
+    color: "#1d1d1f",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+    gap: 12,
+  },
+  check: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#dff7e9",
+    color: "#1b8f5a",
+    textAlign: "center",
+    lineHeight: 24,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  itemText: {
+    flex: 1,
+    color: "#2f2f32",
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  primaryButton: {
+    marginTop: 18,
+    backgroundColor: "#1f8de5",
+    borderRadius: 10,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButtonText: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+});

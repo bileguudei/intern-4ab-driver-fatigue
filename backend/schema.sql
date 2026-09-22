@@ -75,6 +75,38 @@ CREATE TABLE IF NOT EXISTS ai_advice_history (
     FOREIGN KEY (session_id) REFERENCES driving_sessions(id)
 );
 
+CREATE TABLE IF NOT EXISTS rag_documents (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    source TEXT NOT NULL,
+    file_key TEXT,
+    category TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS rag_chunks (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source TEXT NOT NULL,
+    content TEXT NOT NULL,
+    vector_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (document_id) REFERENCES rag_documents(id)
+);
+
+CREATE TABLE IF NOT EXISTS advice_logs (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    fatigue_score REAL,
+    query TEXT NOT NULL,
+    retrieved_chunk_ids TEXT,
+    advice TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_driver_started
     ON driving_sessions(driver_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_session_time
@@ -83,3 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_events_driver_time
     ON fatigue_events(driver_id, event_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sync_driver_time
     ON sync_operations(driver_id, id);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_document
+    ON rag_chunks(document_id, chunk_index);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_vector_id
+    ON rag_chunks(vector_id);
