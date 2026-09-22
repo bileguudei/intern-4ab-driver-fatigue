@@ -32,7 +32,7 @@ export function AdviceScreen({
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/advice`, {
+        const response = await fetch(`${API_BASE_URL}/api/rag/advice`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
