@@ -11,6 +11,7 @@ const FRAME_MS = 66; // ~15 фр/сек
 function frame(t: number, over: Partial<ComputerVisionObservation> = {}): ComputerVisionObservation {
   return {
     timestampMs: t, faceDetected: true, faceConfidence: 0.9,
+    faceBounds: { x: 0.32, y: 0.24, width: 0.36, height: 0.45, centerX: 0.5, centerY: 0.465 },
     leftEar: 0.26, rightEar: 0.26, averageEar: 0.26, leftBlink: 0.1, rightBlink: 0.1, jawOpen: 0,
     headPose: { pitch: 8.6, yaw: 0, roll: 0 }, brightness: 0.5, inferenceTimeMs: 10, landmarkCount: 478,
     ...over,
@@ -92,6 +93,51 @@ describe('createBaselineTracker', () => {
     // 10 сек эзгүй, дараа нь шинэ байрлалд суув.
     const after = feed(tracker, before.until + 10_000, 4, atPitch(12.6));
     expect(after.baseline.headPitch).toBeGreaterThan(9);
+  });
+
+  it('нүүр түр алга болоод өөр байрлалд буцвал шинэ суурийг хурдан тогтооно', () => {
+    const tracker = createBaselineTracker(CALIBRATED);
+    const before = feed(tracker, 0, 4, atPitch(8.6));
+    const lost = feed(tracker, before.until, 2, () => ({ faceDetected: false }));
+    const moved = feed(tracker, lost.until, 1.5, () => ({
+      faceBounds: { x: 0.44, y: 0.24, width: 0.36, height: 0.45, centerX: 0.62, centerY: 0.465 },
+      headPose: { pitch: 28.6, yaw: 0, roll: 0 },
+    }));
+
+    expect(moved.baseline.headPitch).toBeCloseTo(28.6, 0);
+  });
+
+  it('нүүр алга болоод хуучин байрандаа унжсан буцвал шинэ суурь гэж сурахгүй', () => {
+    const tracker = createBaselineTracker(CALIBRATED);
+    const before = feed(tracker, 0, 4, atPitch(8.6));
+    const lost = feed(tracker, before.until, 2, () => ({ faceDetected: false }));
+    const drooped = feed(tracker, lost.until, 2, atPitch(38.6));
+
+    expect(drooped.baseline.headPitch).toBe(CALIBRATED.headPitch);
+  });
+
+  it('нүүр тасралгүй харагдсан ч жолооч хажуу тийш шилжвэл шинэ суурьт дасна', () => {
+    const tracker = createBaselineTracker(CALIBRATED);
+    const before = feed(tracker, 0, 4, atPitch(8.6));
+    const moved = feed(tracker, before.until, 1.5, () => ({
+      faceBounds: { x: 0.47, y: 0.24, width: 0.36, height: 0.45, centerX: 0.65, centerY: 0.465 },
+      headPose: { pitch: 28.6, yaw: 0, roll: 0 },
+    }));
+
+    expect(moved.baseline.headPitch).toBeCloseTo(28.6, 0);
+  });
+
+  it('нүүр буцаж ирэхдээ нүд аньсан бол шинэ байрлал гэж сурахгүй', () => {
+    const tracker = createBaselineTracker(CALIBRATED);
+    const before = feed(tracker, 0, 4, atPitch(8.6));
+    const lost = feed(tracker, before.until, 2, () => ({ faceDetected: false }));
+    const closed = feed(tracker, lost.until, 2, () => ({
+      leftBlink: 0.8,
+      rightBlink: 0.8,
+      headPose: { pitch: 28.6, yaw: 0, roll: 0 },
+    }));
+
+    expect(closed.baseline).toEqual(CALIBRATED);
   });
 
   it('аяллын дунд нүдний босгыг өөрчилж аажим ядаргааг хэвийн болгохгүй', () => {

@@ -15,6 +15,8 @@ export const MAX_FRAME_MS = 500;
  * 16–18 мс-ийн хуурамч анилтууд гарсан тул нээгдэх босгыг доогуур тавина.
  */
 const REOPEN_MARGIN = 0.1;
+/** Толгой зөрсөн үед blink-ийг батлах EAR босго — нээлттэй утгын 60%. */
+const EAR_CONFIRMATION_RATIO = 0.6;
 
 export type EyeState = Readonly<{
   closed: boolean;
@@ -26,6 +28,14 @@ export type EyeState = Readonly<{
 
 type Frame = { t: number; closed: boolean; counted: boolean; duration: number };
 
+type EyeTrackingOptions = Readonly<{
+  /**
+   * Толгой калибрацийн байрлалаас их зөрөхөд blendshape дангаараа хуурамч
+   * анилт өгч болно. Энэ үед EAR мөн анилт зааж байж хаалттай гэж тооцно.
+   */
+  requireEarConfirmation?: boolean;
+}>;
+
 const average = (a: number | null, b: number | null) => (a === null || b === null ? null : (a + b) / 2);
 
 export function createEyeTracker(windowMs = PERCLOS_WINDOW_MS) {
@@ -34,7 +44,11 @@ export function createEyeTracker(windowMs = PERCLOS_WINDOW_MS) {
   let closedSince: number | null = null;
 
   return {
-    update(observation: ComputerVisionObservation, baseline: Baseline): EyeState {
+    update(
+      observation: ComputerVisionObservation,
+      baseline: Baseline,
+      options: EyeTrackingOptions = {},
+    ): EyeState {
       const t = observation.timestampMs;
       const previous = frames[frames.length - 1];
       const gap = previous === undefined ? 0 : t - previous.t;
@@ -43,7 +57,15 @@ export function createEyeTracker(windowMs = PERCLOS_WINDOW_MS) {
       const blink = average(observation.leftBlink, observation.rightBlink);
       const counted = observation.faceDetected && blink !== null;
       const threshold = closed ? baseline.blinkClosed - REOPEN_MARGIN : baseline.blinkClosed;
-      const nowClosed = counted && (blink as number) > threshold;
+      const blinkClosed = counted && (blink as number) > threshold;
+      const earConfirmationThreshold = Math.max(
+        baseline.earClosed,
+        baseline.earOpen * EAR_CONFIRMATION_RATIO,
+      );
+      const earClosed =
+        observation.averageEar !== null && observation.averageEar < earConfirmationThreshold;
+      const nowClosed =
+        blinkClosed && (!options.requireEarConfirmation || earClosed);
       const continuing = closed && gap <= MAX_FRAME_MS;
       const start = continuing ? closedSince : t;
       closedSince = nowClosed ? start : null;

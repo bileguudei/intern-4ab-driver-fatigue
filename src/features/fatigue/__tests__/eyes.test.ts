@@ -12,6 +12,7 @@ const CLOSED = 0.75;
 function frame(t: number, blink: number, faceDetected = true): ComputerVisionObservation {
   return {
     timestampMs: t, faceDetected, faceConfidence: null,
+    faceBounds: faceDetected ? { x: 0.32, y: 0.24, width: 0.36, height: 0.45, centerX: 0.5, centerY: 0.465 } : null,
     leftEar: 0.26, rightEar: 0.26, averageEar: 0.26, leftBlink: blink, rightBlink: blink, jawOpen: 0,
     headPose: null, brightness: 0.5, inferenceTimeMs: 10, landmarkCount: 478,
   };
@@ -61,5 +62,23 @@ describe('createEyeTracker', () => {
     const eyes = createEyeTracker();
     feed(eyes, 0, 30_000, CLOSED, false);
     expect(feed(eyes, 30_000, 60_000, OPEN).perclos).toBe(0);
+  });
+
+  it('толгой байрлалаасаа зөрсөн үед blink ба EAR хоёулаа анилт заавал батална', () => {
+    const eyes = createEyeTracker();
+    const falseBlink = frame(0, CLOSED);
+    expect(
+      eyes.update(falseBlink, BASELINE, { requireEarConfirmation: true }).closed,
+    ).toBe(false);
+
+    const trulyClosed = {
+      ...frame(66, CLOSED),
+      leftEar: 0.14,
+      rightEar: 0.14,
+      averageEar: 0.14,
+    };
+    expect(
+      eyes.update(trulyClosed, BASELINE, { requireEarConfirmation: true }).closed,
+    ).toBe(true);
   });
 });

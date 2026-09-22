@@ -35,6 +35,10 @@ describe('calibrate', () => {
     expect(baseline?.blinkOpen).toBeCloseTo(0.2);
   });
 
+  it('бүх калибрацийг нүдээ аниад хийвэл baseline үүсгэхгүй', () => {
+    expect(calibrate(frames(150, 0.8).map((sample) => ({ ...sample, leftEar: 0.06, rightEar: 0.06, averageEar: 0.06 })))).toBeNull();
+  });
+
   it('нарийн нүдтэй жолоочид босгыг хэт өндөр тавихгүй', () => {
     expect(calibrate(frames(150, 0.6))?.blinkClosed).toBe(0.85);
   });

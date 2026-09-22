@@ -10,11 +10,12 @@ import { createYawnTracker } from './yawn';
 
 export type { FatigueLevel };
 
-/** Толгой ийм их бөхийсөн үед eyeBlink найдваргүй (хэмжилт) — анилтыг тоолохгүй. */
-const HEAD_DOWN_IGNORE_EYES_DEG = 15;
-const MAX_CALIBRATION_FRAME_GAP_MS = 500;
+/** Толгой ийм их бөхийсөн үед eyeBlink-ийг EAR-аар давхар батална. */
+const HEAD_DOWN_EAR_CONFIRM_DEG = 15;
 /** Baseline-ийн маш жижиг алхам бүр UI-г дахин render хийхээс хамгаална. */
 const BASELINE_PUBLISH_DELTA_DEG = 0.25;
+/** Үүнээс урт frame gap гарвал калибрацийн тогтвортой хугацааг шинээр эхлүүлнэ. */
+const MAX_CALIBRATION_FRAME_GAP_MS = 500;
 
 export type FatigueEvent = Readonly<{
   id: string;
@@ -81,10 +82,13 @@ export function createFatigueEngine({
   const assess = (observation: ComputerVisionObservation, baseline: Baseline) => {
     const headState = head.update(observation, baseline);
     const yawnState = yawn.update(observation);
-    const eyeUpdate = eyes.update(observation, baseline);
-    // Эвшээх үед нүд аяндаа анилдаг, толгой доош үед eyeBlink найдваргүй —
-    // энэ хоёр тохиолдолд анилтын хугацааг тоолвол хуурамч critical гарна.
-    const ignoreEyes = headState.downDeg > HEAD_DOWN_IGNORE_EYES_DEG || yawnState.open;
+    // Толгой калибрацийн байрлалаас их зөрөхөд eyeBlink дангаараа найдваргүй.
+    // Гэхдээ анилтыг бүр мөсөн хаяхгүй: EAR мөн баталбал үргэлжлүүлэн тоолно.
+    const eyeUpdate = eyes.update(observation, baseline, {
+      requireEarConfirmation: headState.downDeg > HEAD_DOWN_EAR_CONFIRM_DEG,
+    });
+    // Эвшээх үед нүд аяндаа анилдаг тул зөвхөн энэ үед урт анилтыг тусгаарлана.
+    const ignoreEyes = yawnState.open;
     const eyeState = ignoreEyes ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const score = computeScore(eyeState, headState, yawnState);
     const level = nextLevel(state.level, score, eyeState, headState, yawnState);
@@ -100,22 +104,24 @@ export function createFatigueEngine({
       const monitoring = state.cameraStatus === 'running' && observation.faceDetected;
       if (monitoring !== state.monitoring) update({ monitoring });
       if (state.calibration === 'done' && state.baseline !== null) {
-        const currentBaseline = baselineTracker?.current() ?? state.baseline;
-        const level = assess(observation, currentBaseline);
-        // Зөвхөн хэвийн төлөвт жижиг camera/seat drift-ийг дагуулна. Warning эсвэл
-        // critical үеийн байрлалыг хэвийн baseline болгож сурахгүй.
-        if (level === 'normal' && baselineTracker !== null) {
+        let currentBaseline = baselineTracker?.current() ?? state.baseline;
+        if (baselineTracker !== null) {
           const adjusted = baselineTracker.update(observation);
+          currentBaseline = adjusted;
           if (Math.abs(adjusted.headPitch - state.baseline.headPitch) >= BASELINE_PUBLISH_DELTA_DEG) {
             update({ baseline: adjusted });
           }
         }
+        assess(observation, currentBaseline);
       }
       if (state.calibration !== 'running') return;
 
       // Буруу байрласан/эргэж харсан нүүрний өгөгдлөөр baseline үүсгэхгүй.
       // Нөхцөл алдагдвал 10 секундын тогтвортой хэмжилтийг шинээр эхлүүлнэ.
-      if (!evaluateFaceQuality(observation).ready) {
+      const calibrationQuality = evaluateFaceQuality(observation);
+      // Ердийн анивчилтыг зөвшөөрнө: calibrate() медиан ашигладаг тул цөөн
+      // closed frame нээлттэй нүдний baseline-ийг гажуудуулахгүй.
+      if (!calibrationQuality.ready && calibrationQuality.issue !== 'eyes-closed') {
         resetCalibrationWindow();
         return;
       }
@@ -128,9 +134,10 @@ export function createFatigueEngine({
       update({ calibrationProgress: Math.min(elapsed / CALIBRATION_MS, 1), calibrationPhase: elapsed < CALIBRATION_MS / 2 ? 'eye' : 'head' });
       if (elapsed < CALIBRATION_MS) return;
       const baseline = calibrate(samples);
+      const initialBounds = samples.at(-1)?.faceBounds ?? null;
       samples = [];
       lastCalibrationTimestamp = null;
-      baselineTracker = baseline === null ? null : createBaselineTracker(baseline);
+      baselineTracker = baseline === null ? null : createBaselineTracker(baseline, initialBounds);
       update({ baseline, calibration: baseline ? 'done' : 'failed', calibrationProgress: baseline ? 1 : 0 });
     },
 
