@@ -205,6 +205,38 @@ describe('createFatigueEngine', () => {
     expect(engine.getState().level).toBe('critical');
   });
 
+  it('pitch өөрчлөгдөхгүй ч чигээрээ урагш тонгойвол critical илрүүлнэ', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 12_100; t += 50) {
+      engine.accept({
+        ...observation(true, t),
+        faceBounds: { x: 0.29, y: 0.28, width: 0.42, height: 0.52, centerX: 0.5, centerY: 0.54 },
+      });
+    }
+
+    expect(engine.getState().level).toBe('critical');
+  });
+
+  it('нүүр зөвхөн томорсон ч төв нь доошлоогүй бол урагш унжилт гэж андуурахгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 12_100; t += 50) {
+      engine.accept({
+        ...observation(true, t),
+        faceBounds: { x: 0.25, y: 0.165, width: 0.5, height: 0.6, centerX: 0.5, centerY: 0.465 },
+      });
+    }
+
+    expect(engine.getState().level).toBe('normal');
+  });
+
   it('жолооч хүрээнээс гараад өөр байрлалд буцвал дахин төвлөрч, анилтыг танина', () => {
     const { engine } = setup();
     engine.onCameraStatus('running');
