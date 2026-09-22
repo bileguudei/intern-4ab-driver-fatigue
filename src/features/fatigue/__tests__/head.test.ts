@@ -26,7 +26,7 @@ function missingFrame(t: number): ComputerVisionObservation {
 
 /** Толгойн өнцгийн хэлбэрийг [мс, градус] цэгүүдээр өгч, 15 фр/сек-т шугаман завсарлана. */
 function motion(head: ReturnType<typeof createHeadTracker>, points: [number, number][]): HeadState {
-  let state: HeadState = { downDeg: 0, droopMs: 0, quickNods: 0 };
+  let state: HeadState = { downDeg: 0, forwardLean: 0, droopMs: 0, quickNods: 0 };
   for (let i = 1; i < points.length; i++) {
     const [t0, p0] = points[i - 1];
     const [t1, p1] = points[i];

@@ -138,6 +138,7 @@ export function createFatigueEngine({
       samples = [];
       lastCalibrationTimestamp = null;
       baselineTracker = baseline === null ? null : createBaselineTracker(baseline, initialBounds);
+      head = createHeadTracker(baseline === null ? null : initialBounds);
       update({ baseline, calibration: baseline ? 'done' : 'failed', calibrationProgress: baseline ? 1 : 0 });
     },
 
