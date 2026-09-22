@@ -1,6 +1,13 @@
-export type TabName = 'home' | 'history' | 'settings';
-export type FlowScreen = 'camera' | 'calibration' | 'driving' | 'summary';
-export type Route = { kind: 'tabs'; tab: TabName } | { kind: 'flow'; screen: FlowScreen };
+export type TabName = "home" | "history" | "settings";
+export type FlowScreen =
+  | "camera"
+  | "calibration"
+  | "driving"
+  | "summary"
+  | "advice";
+export type Route =
+  | { kind: "tabs"; tab: TabName }
+  | { kind: "flow"; screen: FlowScreen };
 
 export type SessionSummary = {
   durationSeconds: number;
@@ -10,4 +17,4 @@ export type SessionSummary = {
   avgScore: number;
 };
 
-export type FatigueState = 'normal' | 'warning' | 'critical';
+export type FatigueState = "normal" | "warning" | "critical";

@@ -1,239 +1,187 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState, StatusBar, StyleSheet, View } from "react-native";
+import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
+import { ComputerVisionCamera } from "@/features/computer-vision";
+import { createFatigueEngine } from "@/features/fatigue/engine";
+import { FatigueAlarm } from "@/features/fatigue/fatigue-alarm";
+import { KeepScreenAwake } from "@/features/fatigue/keep-screen-awake";
+import { BottomNav } from "@/fatigueguard/components/BottomNav";
+import { AdviceScreen } from "@/fatigueguard/screens/AdviceScreen";
+import { CalibrationScreen } from "@/fatigueguard/screens/CalibrationScreen";
+import { CameraSetupScreen } from "@/fatigueguard/screens/CameraSetupScreen";
+import { DrivingScreen } from "@/fatigueguard/screens/DrivingScreen";
+import { HistoryScreen } from "@/fatigueguard/screens/HistoryScreen";
+import { HomeScreen } from "@/fatigueguard/screens/HomeScreen";
+import { SessionSummaryScreen } from "@/fatigueguard/screens/SessionSummaryScreen";
+import { SettingsScreen } from "@/fatigueguard/screens/SettingsScreen";
+import { colors } from "@/fatigueguard/theme";
+import type { Route, SessionSummary, TabName } from "@/fatigueguard/types";
+import {
+  addLocalFatigueEvent,
+  completeLocalSession,
+  createLocalSession,
+} from "@/data/local-db";
+import { syncPendingData } from "@/data/sync";
+
+const emptySummary: SessionSummary = {
+  durationSeconds: 0,
+  warningCount: 0,
+  criticalCount: 0,
+  maxScore: 24,
+  avgScore: 24,
+};
 
 export default function GuardApp() {
+  const [route, setRoute] = useState<Route>({ kind: "tabs", tab: "home" });
+  const [summary, setSummary] = useState<SessionSummary>(emptySummary);
+  const activeSessionClientId = useRef<string | null>(null);
+  const engine = useMemo(() => createFatigueEngine(), []);
+
+  useEffect(() => {
+    void syncPendingData().catch((error) =>
+      console.warn("Background sync unavailable:", error),
+    );
+    const networkSubscription = Network.addNetworkStateListener(
+      ({ isConnected }) => {
+        if (isConnected)
+          void syncPendingData().catch((error) =>
+            console.warn("Background sync unavailable:", error),
+          );
+      },
+    );
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (state) => {
+        if (state === "active")
+          void syncPendingData().catch((error) =>
+            console.warn("Background sync unavailable:", error),
+          );
+      },
+    );
+    return () => {
+      networkSubscription.remove();
+      appStateSubscription.remove();
+    };
+  }, []);
+
+  const monitoring =
+    route.kind === "flow" &&
+    (route.screen === "calibration" || route.screen === "driving");
+  const keepAwake =
+    route.kind === "flow" &&
+    route.screen !== "summary" &&
+    route.screen !== "advice";
+  const showTab = (tab: TabName) => setRoute({ kind: "tabs", tab });
+  const showFlow = (
+    screen: "camera" | "calibration" | "driving" | "summary" | "advice",
+  ) => setRoute({ kind: "flow", screen });
+
+  const handleCalibrationComplete = async () => {
+    const session = await createLocalSession();
+    activeSessionClientId.current = session.clientId;
+    showFlow("driving");
+  };
+
+  const handleFinish = async (data: SessionSummary) => {
+    const clientId = activeSessionClientId.current;
+    if (clientId) {
+      await completeLocalSession(clientId, {
+        endedAt: new Date().toISOString(),
+        fatigueScore: data.maxScore,
+        warningCount: data.warningCount,
+        criticalEventCount: data.criticalCount,
+      });
+      for (const event of engine.getEvents()) {
+        if (
+          event.type !== "fatigue_warning" &&
+          event.type !== "fatigue_critical"
+        )
+          continue;
+        await addLocalFatigueEvent({
+          client_id: `event:${event.id}`,
+          session_client_id: clientId,
+          driver_id: 1,
+          level: event.type === "fatigue_warning" ? "warning" : "critical",
+          fatigue_score: null,
+          event_at: new Date(event.occurredAt).toISOString(),
+          metadata_json: null,
+        });
+      }
+      void syncPendingData().catch((error) =>
+        console.warn("Session sync deferred:", error),
+      );
+    }
+    setSummary(data);
+    showFlow("summary");
+  };
+
+  let screen: React.ReactNode;
+  if (route.kind === "tabs") {
+    screen =
+      route.tab === "home" ? (
+        <HomeScreen onStart={() => showFlow("camera")} />
+      ) : route.tab === "history" ? (
+        <HistoryScreen />
+      ) : (
+        <SettingsScreen />
+      );
+  } else if (route.screen === "camera") {
+    screen = (
+      <CameraSetupScreen
+        onBack={() => showTab("home")}
+        onContinue={() => showFlow("calibration")}
+      />
+    );
+  } else if (route.screen === "calibration") {
+    screen = (
+      <CalibrationScreen
+        engine={engine}
+        onBack={() => showFlow("camera")}
+        onComplete={handleCalibrationComplete}
+      />
+    );
+  } else if (route.screen === "driving") {
+    screen = <DrivingScreen engine={engine} onFinish={handleFinish} />;
+  } else if (route.screen === "summary") {
+    screen = (
+      <SessionSummaryScreen
+        data={summary}
+        onHome={() => showTab("home")}
+        onAdvice={() => showFlow("advice")}
+      />
+    );
+  } else if (route.screen === "advice") {
+    screen = <AdviceScreen onBack={() => showFlow("summary")} />;
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0b1117" />
-
-      <View style={styles.page}>
-        <View style={styles.topPill}>
-          <Text style={styles.topPillText}>
-            ragii tusad ni file bolgoh hadgalah uu
-          </Text>
-        </View>
-
-        <View style={styles.content}>
-          <Text style={styles.paragraph}>
-            <Text style={styles.textPrimary}>
-              Тийм, тусдаа файл болох нь зев. Одоо RAG дэлгэц апп-ын үндсэн
-              файл{" "}
-            </Text>
-            <Text style={styles.inlineCode}>index.tsx</Text>
-            <Text style={styles.textPrimary}> ээзлэн тул жоолоодогын</Text>
-          </Text>
-
-          <Text style={styles.paragraph}>Хийх зүйл:</Text>
-
-          <Text style={styles.listItem}>
-            <Text style={styles.number}>1.</Text>
-            <Text style={styles.textPrimary}> RAG дэлгэцийг </Text>
-            <Text style={styles.inlineLink}>
-              src/fatigueguard/screens/AdviceScreen.tsx
-            </Text>
-            <Text style={styles.textPrimary}>
-              {" "}
-              болгож зөөн. Код өвөрлэгдэхгүй, зохих байршин солигдоно.
-            </Text>
-          </Text>
-
-          <Text style={styles.listItem}>
-            <Text style={styles.number}>2.</Text>
-            <Text style={styles.inlineCode}>index.tsx</Text>
-            <Text style={styles.textPrimary}>
-              {" "}
-              -ийг #21-аас өмнөх хувилбараар сэргээх: камер, калибраци,
-              жоолоодго, дохио, sync.
-            </Text>
-          </Text>
-
-          <Text style={styles.listItem}>
-            <Text style={styles.number}>3.</Text>
-            <Text style={styles.textPrimary}>
-              {" "}
-              AdviceScreen-ийн үрсгалд жолбох. Хамгийн тохиромжтой нь аяллын
-              дүнгэж дээр «Айл зөөлгөе»
-            </Text>
-          </Text>
-
-          <Text style={styles.paragraph}>
-            <Text style={styles.textPrimary}>Анхаарах: RAG дэлгэц нь </Text>
-            <Text style={styles.inlineCode}>zaaanm7-ий</Text>
-            <Text style={styles.textPrimary}>, </Text>
-            <Text style={styles.inlineCode}>index.tsx</Text>
-            <Text style={styles.textPrimary}>
-              {" "}
-              -ийн UI хуййт айлж. Засвар хийсээд өмне эдгээр хуйббайгаар
-              айлтагаагаа зөрчидлено.
-            </Text>
-          </Text>
-
-          <Text style={styles.paragraph}>
-            <Text style={styles.textPrimary}>
-              Шинэ branch дээр хийгээд, push хийхгүйтсэйн дээр туршиж үзэх үү?
-            </Text>
-          </Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaActions}>
-              <Text style={styles.metaIcon}>◫</Text>
-              <Text style={styles.metaIcon}>⟲</Text>
-              <Text style={styles.metaIcon}>⎇</Text>
-            </View>
-            <Text style={styles.metaTime}>3 minutes ago</Text>
-          </View>
-        </View>
-
-        <View style={styles.bottomBar}>
-          <Text style={styles.branchText}>sergeg main</Text>
-
-          <View style={styles.actionsRow}>
-            <Text style={styles.diffText}>+2,556 -118</Text>
-            <Pressable style={styles.prButton} accessibilityRole="button">
-              <Text style={styles.prButtonText}>Create PR</Text>
-            </Pressable>
-            <Text style={styles.closeIcon}>×</Text>
-          </View>
-        </View>
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <View style={styles.app}>
+        {keepAwake ? <KeepScreenAwake /> : null}
+        {route.kind === "flow" && route.screen === "driving" ? (
+          <FatigueAlarm engine={engine} />
+        ) : null}
+        {monitoring ? (
+          <ComputerVisionCamera
+            active
+            style={styles.monitorCamera}
+            onObservation={engine.accept}
+            onStatusChange={engine.onCameraStatus}
+          />
+        ) : null}
+        {screen}
+        {route.kind === "tabs" ? (
+          <BottomNav active={route.tab} onChange={showTab} />
+        ) : null}
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#0b1117",
-  },
-  page: {
-    flex: 1,
-    backgroundColor: "#0b1117",
-    paddingTop: 18,
-    paddingHorizontal: 18,
-    paddingBottom: 12,
-  },
-  topPill: {
-    alignSelf: "flex-end",
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    marginTop: 8,
-    marginBottom: 28,
-  },
-  topPillText: {
-    color: "#f3f4f6",
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: "500",
-  },
-  content: {
-    flex: 1,
-    paddingLeft: 6,
-    paddingTop: 8,
-  },
-  paragraph: {
-    color: "#ebedf0",
-    fontSize: 18,
-    lineHeight: 34,
-    marginBottom: 12,
-  },
-  textPrimary: {
-    color: "#ebedf0",
-  },
-  inlineCode: {
-    color: "#ef7f7f",
-    backgroundColor: "rgba(239, 127, 127, 0.1)",
-    borderRadius: 6,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    fontFamily: "monospace",
-  },
-  inlineLink: {
-    color: "#6ec8ff",
-    textDecorationLine: "underline",
-    textDecorationColor: "#6ec8ff",
-  },
-  listItem: {
-    color: "#ebedf0",
-    fontSize: 18,
-    lineHeight: 34,
-    marginBottom: 12,
-  },
-  number: {
-    color: "#ebedf0",
-    fontWeight: "700",
-    marginRight: 8,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 20,
-    opacity: 0.8,
-  },
-  metaActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginRight: 18,
-  },
-  metaIcon: {
-    color: "#d1d5db",
-    fontSize: 17,
-    opacity: 0.9,
-  },
-  metaTime: {
-    color: "#cbd5e1",
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  bottomBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(17, 24, 39, 0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.12)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 12,
-  },
-  branchText: {
-    color: "#d1d5db",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  diffText: {
-    color: "#34d399",
-    fontSize: 14,
-    fontWeight: "700",
-    marginRight: 12,
-  },
-  prButton: {
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 12,
-  },
-  prButtonText: {
-    color: "#f8fafc",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  closeIcon: {
-    color: "#d1d5db",
-    fontSize: 22,
-    lineHeight: 22,
-    fontWeight: "400",
-  },
+  safe: { flex: 1, backgroundColor: colors.background },
+  app: { flex: 1, backgroundColor: colors.background },
+  monitorCamera: { position: "absolute", width: 1, height: 1, opacity: 0 },
 });
