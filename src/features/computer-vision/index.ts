@@ -15,9 +15,12 @@ export {
   RIGHT_EYE_EAR_INDICES,
 } from './constants';
 export { createComputerVisionObservation } from './create-observation';
+export { evaluateFaceQuality, faceQualityMessage } from './face-quality';
+export type { FaceQuality, FaceQualityIssue } from './face-quality';
 export type {
   ComputerVisionObservation,
   EyeLandmarkIndices,
+  FaceBounds,
   FaceLandmarkerAdapter,
   FaceLandmarkerFrameResult,
   HeadPose,

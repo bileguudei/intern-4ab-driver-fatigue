@@ -7,6 +7,7 @@ import { createFatigueEngine } from '../engine';
 function observation(faceDetected: boolean, timestampMs = 1_000): ComputerVisionObservation {
   return {
     timestampMs, faceDetected, faceConfidence: null,
+    faceBounds: faceDetected ? { x: 0.32, y: 0.24, width: 0.36, height: 0.45, centerX: 0.5, centerY: 0.465 } : null,
     leftEar: 0.3, rightEar: 0.3, averageEar: 0.3,
     leftBlink: 0.1, rightBlink: 0.1, jawOpen: 0,
     headPose: { pitch: 3, yaw: 0, roll: 0 }, brightness: 0.5, inferenceTimeMs: 10, landmarkCount: 478,
@@ -74,11 +75,35 @@ describe('createFatigueEngine', () => {
     expect(engine.getState().baseline?.blinkOpen).toBeCloseTo(0.1);
   });
 
-  it('нүүр олдоогүй бол калибраци амжилтгүй болно', () => {
+  it('нүүр олдоогүй бол калибраци урагшлахгүй', () => {
     const { engine } = setup();
     engine.startCalibration();
     for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(false, t));
-    expect(engine.getState().calibration).toBe('failed');
+    expect(engine.getState().calibration).toBe('running');
+    expect(engine.getState().calibrationProgress).toBe(0);
+  });
+
+  it('калибрацийн үед нүд анихад хэмжилтийг 0-ээс эхлүүлнэ', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 4_000; t += 50) engine.accept(observation(true, t));
+    expect(engine.getState().calibrationProgress).toBeCloseTo(0.4);
+    engine.accept({ ...observation(true, 4_050), leftBlink: 0.8, rightBlink: 0.8, averageEar: 0.06 });
+    expect(engine.getState().calibrationProgress).toBe(0);
+    for (let t = 4_100; t <= 14_050; t += 50) engine.accept(observation(true, t));
+    expect(engine.getState().calibration).toBe('running');
+    engine.accept(observation(true, 14_100));
+    expect(engine.getState().calibration).toBe('done');
+  });
+
+  it('камерын frame тасарвал калибрацийн хэмжилтийг шинээр эхлүүлнэ', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 4_000; t += 50) engine.accept(observation(true, t));
+    engine.accept(observation(true, 5_000));
+    expect(engine.getState().calibrationProgress).toBe(0);
   });
 
   it('калибрацийн дараа 2 сек аньсан бол critical болж, дүнд тоологдоно', () => {

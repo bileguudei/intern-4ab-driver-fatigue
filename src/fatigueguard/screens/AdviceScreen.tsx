@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../theme";
 
 export function AdviceScreen({ onBack }: { onBack: () => void }) {
   return (

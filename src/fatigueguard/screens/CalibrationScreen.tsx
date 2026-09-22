@@ -1,12 +1,82 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Header, PrimaryButton } from '../components/ui';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ComputerVisionCamera, evaluateFaceQuality, faceQualityMessage, type ComputerVisionObservation } from '@/features/computer-vision';
 import type { FatigueEngine } from '@/features/fatigue/engine';
 import { useFatigueState } from '@/features/fatigue/use-fatigue-state';
+import { PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
-type Phase = 'eye' | 'head' | 'complete';
-// This calibration flow intentionally resets its countdown whenever the phase changes.
-// eslint-disable-next-line react-hooks/set-state-in-effect
-export function CalibrationScreen({ engine, onBack, onComplete }: { engine: FatigueEngine; onBack: () => void; onComplete: () => void }) { const [phase, setPhase] = useState<Phase>('eye'), [elapsed, setElapsed] = useState(0); const { calibration } = useFatigueState(engine); useEffect(() => { engine.startCalibration(); }, [engine]); useEffect(() => { if (phase === 'complete') return; setElapsed(0); const timer = setInterval(() => setElapsed((value) => { if (value >= 4900) { clearInterval(timer); setPhase('head'); return 5000; } return value + 100; }), 100); return () => clearInterval(timer); }, [phase]); const progress = Math.min(elapsed / 5000, 1), countdown = Math.max(0, Math.ceil((5000 - elapsed) / 1000)); const shown: Phase = calibration === 'done' ? 'complete' : phase; const retry = () => { engine.startCalibration(); setPhase('eye'); }; const status = calibration === 'failed' ? 'Нүүр тогтвортой харагдсангүй' : shown === 'eye' ? 'Нүдний хэвийн төлөвийг тодорхойлж байна' : shown === 'head' ? 'Толгойн хэвийн байрлалыг тодорхойлж байна' : 'Калибраци амжилттай дууслаа!'; return <View style={styles.screen}><Header title="Калибраци" onBack={onBack} badge="2 / 2" /><View style={styles.center}>{shown === 'complete' ? <View style={styles.successCircle}><Text style={styles.successIcon}>✓</Text></View> : <View style={styles.progressCircle}><Text style={styles.phaseIcon}>{shown === 'eye' ? '◉' : '☺'}</Text><Text style={styles.countdown}>{countdown}</Text><View style={styles.track}><View style={[styles.fill, { width: `${progress * 100}%` }]} /></View></View>}<Text style={styles.status}>{status}</Text><Text style={styles.hint}>{shown === 'eye' ? 'Урагшаа харж, нүдээ хэвийн анивчина уу' : shown === 'head' ? 'Толгойгоо эгц, хөдөлгөөнгүй байлгана уу' : 'Систем таны хэвийн төлөвийг саналаа'}</Text><View style={styles.steps}><Step label="Нүд" done={shown !== 'eye'} active={shown === 'eye'} /><View style={styles.line} /><Step label="Толгой" done={shown === 'complete'} active={shown === 'head'} /></View>{shown === 'complete' ? <View style={styles.button}><PrimaryButton label="Жолоодлого эхлүүлэх" onPress={onComplete} /></View> : null}{calibration === 'failed' ? <View style={styles.button}><PrimaryButton label="Дахин калибраци хийх" onPress={retry} /></View> : null}</View></View>; }
-function Step({ label, done, active }: { label: string; done: boolean; active: boolean }) { return <View style={styles.step}><View style={[styles.stepDot, (done || active) && styles.stepDotActive]}><Text style={styles.stepText}>{done ? '✓' : '•'}</Text></View><Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{label}</Text></View>; }
-const styles = StyleSheet.create({ screen: { flex: 1 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }, progressCircle: { width: 190, height: 190, borderRadius: 95, borderColor: colors.primary, borderWidth: 3, alignItems: 'center', justifyContent: 'center', backgroundColor: '#101A2D' }, successCircle: { width: 170, height: 170, borderRadius: 85, backgroundColor: colors.normalDark, borderColor: colors.normal, borderWidth: 2, alignItems: 'center', justifyContent: 'center' }, successIcon: { color: colors.normal, fontSize: 72, fontWeight: '700' }, phaseIcon: { color: colors.primary, fontSize: 42 }, countdown: { color: colors.text, fontSize: 30, fontWeight: '800', marginTop: 4 }, track: { position: 'absolute', bottom: 22, left: 28, right: 28, height: 5, borderRadius: 3, backgroundColor: colors.borderBright, overflow: 'hidden' }, fill: { height: '100%', backgroundColor: colors.primary }, status: { color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center', marginTop: 32 }, hint: { color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginTop: 8 }, steps: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 34 }, step: { alignItems: 'center', width: 76 }, stepDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' }, stepDotActive: { backgroundColor: colors.primary }, stepText: { color: colors.white, fontWeight: '800' }, stepLabel: { color: colors.textMuted, fontSize: 12, marginTop: 7 }, stepLabelActive: { color: colors.text }, line: { width: 64, height: 2, backgroundColor: colors.borderBright, marginTop: 16 }, button: { alignSelf: 'stretch', marginTop: 40 } });
+
+export function CalibrationScreen({ engine, onBack, onComplete }: {
+  engine: FatigueEngine;
+  onBack: () => void;
+  onComplete: () => void;
+}) {
+  const live = useFatigueState(engine);
+  const [observation, setObservation] = useState<ComputerVisionObservation | null>(null);
+  const quality = evaluateFaceQuality(observation);
+
+  useEffect(() => { engine.startCalibration(); }, [engine]);
+
+  const handleObservation = useCallback((next: ComputerVisionObservation) => {
+    setObservation(next);
+    engine.accept(next);
+  }, [engine]);
+
+  const complete = live.calibration === 'done';
+  const progress = Math.round(live.calibrationProgress * 100);
+  const message = complete
+    ? 'Калибраци амжилттай'
+    : quality.issue
+      ? faceQualityMessage[quality.issue]
+      : live.calibrationPhase === 'eye'
+        ? 'Нүдээ нээлттэй, хөдөлгөөнгүй байлгана уу'
+        : 'Толгойгоо эгц, хөдөлгөөнгүй байлгана уу';
+
+  return (
+    <View style={styles.screen}>
+      <ComputerVisionCamera
+        active
+        style={StyleSheet.absoluteFill}
+        onObservation={handleObservation}
+        onStatusChange={engine.onCameraStatus}
+      />
+      <View pointerEvents="none" style={styles.shade} />
+      <View style={styles.topBar}>
+        <Pressable onPress={onBack} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
+        <View><Text style={styles.step}>АЛХАМ 2 / 2</Text><Text style={styles.title}>Калибраци</Text></View>
+        <View style={styles.back} />
+      </View>
+
+      <View pointerEvents="none" style={[styles.faceFrame, (quality.ready || complete) && styles.faceFrameReady]}>
+        <View style={[styles.corner, styles.topLeft]} /><View style={[styles.corner, styles.topRight]} />
+        <View style={[styles.corner, styles.bottomLeft]} /><View style={[styles.corner, styles.bottomRight]} />
+      </View>
+
+      <View style={styles.bottomPanel}>
+        <Text style={[styles.status, { color: quality.ready || complete ? colors.normal : colors.warning }]}>{message}</Text>
+        {!complete ? <Text style={styles.phaseLabel}>{live.calibrationPhase === 'eye' ? '1. НҮДНИЙ ШАЛГАЛТ' : '2. ТОЛГОЙН ШАЛГАЛТ'}</Text> : null}
+        <Text style={styles.hint}>{complete ? 'Нүд болон толгойн хэвийн утгыг амжилттай хадгаллаа.' : quality.ready ? 'Нүд аних, нүүрээ буруулах эсвэл хүрээнээс гарахад хэмжилт 0-ээс эхэлнэ.' : 'Зөв байрлалдаа орсны дараа хэмжилт автоматаар эхэлнэ.'}</Text>
+        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
+        <Text style={styles.progressText}>{complete ? '100%' : `${progress}% · ${Math.ceil((1 - live.calibrationProgress) * 10)} сек`}</Text>
+        {complete ? <PrimaryButton label="Жолоодлого эхлүүлэх" onPress={onComplete} /> : null}
+        {live.calibration === 'failed' ? <PrimaryButton label="Дахин оролдох" onPress={() => engine.startCalibration()} /> : null}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, justifyContent: 'space-between' }, shade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#00000038' },
+  topBar: { paddingHorizontal: 16, paddingTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  back: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#07111CCC', alignItems: 'center', justifyContent: 'center' }, backText: { color: colors.white, fontSize: 34, lineHeight: 38 },
+  step: { color: '#FFFFFFB8', fontSize: 10, fontWeight: '800', letterSpacing: 1, textAlign: 'center' }, title: { color: colors.white, fontSize: 20, fontWeight: '800', textAlign: 'center', marginTop: 2 },
+  faceFrame: { position: 'absolute', alignSelf: 'center', top: '18%', width: '68%', height: '47%', borderRadius: 140, borderWidth: 2, borderColor: colors.warning }, faceFrameReady: { borderColor: colors.normal },
+  corner: { position: 'absolute', width: 28, height: 28, borderColor: colors.white },
+  topLeft: { top: -3, left: -3, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 16 }, topRight: { top: -3, right: -3, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 16 },
+  bottomLeft: { bottom: -3, left: -3, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 16 }, bottomRight: { bottom: -3, right: -3, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 16 },
+  bottomPanel: { margin: 16, padding: 18, borderRadius: 22, backgroundColor: '#07111CEB', borderWidth: 1, borderColor: '#FFFFFF24' },
+  status: { fontSize: 18, fontWeight: '800', textAlign: 'center' }, hint: { color: '#FFFFFFB8', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 6 },
+  phaseLabel: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1, textAlign: 'center', marginTop: 10 },
+  progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#FFFFFF24', overflow: 'hidden', marginTop: 16 }, progressFill: { height: '100%', backgroundColor: colors.normal },
+  progressText: { color: colors.white, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 7, marginBottom: 14 },
+});

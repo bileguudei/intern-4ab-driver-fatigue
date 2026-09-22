@@ -1,4 +1,5 @@
 import type { ComputerVisionObservation, VisionStatus } from '@/features/computer-vision';
+import { evaluateFaceQuality } from '@/features/computer-vision/face-quality';
 
 import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
 import { createEyeTracker } from './eyes';
@@ -10,6 +11,7 @@ export type { FatigueLevel };
 
 /** Толгой ийм их бөхийсөн үед eyeBlink найдваргүй (хэмжилт) — анилтыг тоолохгүй. */
 const HEAD_DOWN_IGNORE_EYES_DEG = 15;
+const MAX_CALIBRATION_FRAME_GAP_MS = 500;
 
 export type FatigueEvent = Readonly<{
   id: string;
@@ -25,6 +27,8 @@ export type FatigueEngineState = Readonly<{
   /** Камер ажиллаж, нүүрний өгөгдөл ирж байгаа эсэх. */
   monitoring: boolean;
   calibration: 'idle' | 'running' | 'done' | 'failed';
+  calibrationProgress: number;
+  calibrationPhase: 'eye' | 'head';
   baseline: Baseline | null;
 }>;
 
@@ -44,9 +48,10 @@ export function createFatigueEngine({
   const listeners = new Set<(state: FatigueEngineState) => void>();
   const events: FatigueEvent[] = [];
   let state: FatigueEngineState = {
-    level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', baseline: null,
+    level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null,
   };
   let samples: ComputerVisionObservation[] = [];
+  let lastCalibrationTimestamp: number | null = null;
   let eyes = createEyeTracker();
   let head = createHeadTracker();
   let yawn = createYawnTracker();
@@ -61,6 +66,12 @@ export function createFatigueEngine({
 
   const record = (type: FatigueEvent['type']) => {
     events.push({ id: createId(), occurredAt: now(), type });
+  };
+
+  const resetCalibrationWindow = () => {
+    samples = [];
+    lastCalibrationTimestamp = null;
+    update({ calibrationProgress: 0, calibrationPhase: 'eye' });
   };
 
   const assess = (observation: ComputerVisionObservation, baseline: Baseline) => {
@@ -86,23 +97,36 @@ export function createFatigueEngine({
       if (state.calibration === 'done' && state.baseline !== null) assess(observation, state.baseline);
       if (state.calibration !== 'running') return;
 
+      // Буруу байрласан/эргэж харсан нүүрний өгөгдлөөр baseline үүсгэхгүй.
+      // Нөхцөл алдагдвал 10 секундын тогтвортой хэмжилтийг шинээр эхлүүлнэ.
+      if (!evaluateFaceQuality(observation).ready) {
+        resetCalibrationWindow();
+        return;
+      }
+      if (lastCalibrationTimestamp !== null && observation.timestampMs - lastCalibrationTimestamp > MAX_CALIBRATION_FRAME_GAP_MS) {
+        resetCalibrationWindow();
+      }
       samples.push(observation);
-      // Монотон цагаар хэмжинэ — фрэйм тасарсан ч 10 сек-ийн цонх зөв байна.
-      if (observation.timestampMs - samples[0].timestampMs < CALIBRATION_MS) return;
+      lastCalibrationTimestamp = observation.timestampMs;
+      const elapsed = observation.timestampMs - samples[0].timestampMs;
+      update({ calibrationProgress: Math.min(elapsed / CALIBRATION_MS, 1), calibrationPhase: elapsed < CALIBRATION_MS / 2 ? 'eye' : 'head' });
+      if (elapsed < CALIBRATION_MS) return;
       const baseline = calibrate(samples);
       samples = [];
-      update({ baseline, calibration: baseline ? 'done' : 'failed' });
+      lastCalibrationTimestamp = null;
+      update({ baseline, calibration: baseline ? 'done' : 'failed', calibrationProgress: baseline ? 1 : 0 });
     },
 
     /** Жолоочоос шулуун харж, хэвийн анивчихыг хүсээд дуудна. */
     startCalibration() {
       samples = [];
+      lastCalibrationTimestamp = null;
       events.length = 0; // өмнөх аяллын явдал шинэ аяллын дүнд орохгүй
       eyes = createEyeTracker();
       head = createHeadTracker();
       yawn = createYawnTracker();
       session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
-      update({ calibration: 'running', baseline: null, level: 'normal', score: 0 });
+      update({ calibration: 'running', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null, level: 'normal', score: 0 });
     },
 
     /** Жолоодлого дуусгах — UI-ийн SessionSummary хэлбэрээр. */
@@ -132,6 +156,7 @@ export function createFatigueEngine({
       const stopped = wasRunning && !isRunning;
       const resumed = !wasRunning && isRunning && events.some((e) => e.type === 'camera_stopped');
       if (stopped) record('camera_stopped');
+      if (!isRunning && state.calibration === 'running') resetCalibrationWindow();
       if (resumed) record('camera_resumed');
       update({ cameraStatus, monitoring: isRunning && state.monitoring });
     },
