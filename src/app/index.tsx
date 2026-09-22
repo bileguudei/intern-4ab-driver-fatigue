@@ -1,138 +1,99 @@
-import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
-
-const recommendations = [
-  "Pull over at the nearest safe stop and rest for 15–20 minutes.",
-  "Drink water and cool down before continuing the drive.",
-  "Avoid long stretches of night driving until the fatigue level drops.",
-];
-
 export default function GuardApp() {
-  const [showAdvice, setShowAdvice] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [advice, setAdvice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleToggleAdvice = async () => {
-    if (showAdvice) {
-      setShowAdvice(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/advice`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId: "session-demo",
-          driverId: 1,
-          fatigueScore: 82,
-          averageFatigueScore: 71,
-          maxFatigueScore: 94,
-          driveDurationMinutes: 165,
-          prolongedEyeClosureCount: 5,
-          headNodCount: 3,
-          perclos: 0.21,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Advice request failed (${response.status})`);
-      }
-
-      const payload = (await response.json()) as {
-        advice?: string;
-        sources?: Array<{ title?: string; source?: string }>;
-      };
-
-      setAdvice(
-        payload.advice ??
-          "Take a break and find a safe stopping area before continuing to drive.",
-      );
-      setShowAdvice(true);
-    } catch (fetchError) {
-      const message =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Unable to load driver guidance.";
-      setError(message);
-      setAdvice(
-        "Take a break and find a safe stopping area before continuing to drive.",
-      );
-      setShowAdvice(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f3f3f3" />
-      <View style={styles.page}>
-        <View style={styles.card}>
-          <Text style={styles.badge}>RAG AI guidance</Text>
-          <Text style={styles.title}>Driver recommendations</Text>
+      <StatusBar barStyle="light-content" backgroundColor="#0b1117" />
 
-          <Text style={styles.subtitle}>Current fatigue state</Text>
-          <Text style={styles.body}>
-            Based on the latest driving indicators, the system recommends a
-            short break and a lower-risk driving plan.
+      <View style={styles.page}>
+        <View style={styles.topPill}>
+          <Text style={styles.topPillText}>
+            ragii tusad ni file bolgoh hadgalah uu
+          </Text>
+        </View>
+
+        <View style={styles.content}>
+          <Text style={styles.paragraph}>
+            <Text style={styles.textPrimary}>
+              Тийм, тусдаа файл болох нь зев. Одоо RAG дэлгэц апп-ын үндсэн
+              файл{" "}
+            </Text>
+            <Text style={styles.inlineCode}>index.tsx</Text>
+            <Text style={styles.textPrimary}> ээзлэн тул жоолоодогын</Text>
           </Text>
 
-          <Pressable
-            style={styles.primaryButton}
-            accessibilityRole="button"
-            onPress={handleToggleAdvice}
-            disabled={isLoading}
-          >
-            <Text style={styles.primaryButtonText}>
-              {isLoading
-                ? "Loading guidance..."
-                : showAdvice
-                  ? "Hide guidance"
-                  : "View guidance"}
+          <Text style={styles.paragraph}>Хийх зүйл:</Text>
+
+          <Text style={styles.listItem}>
+            <Text style={styles.number}>1.</Text>
+            <Text style={styles.textPrimary}> RAG дэлгэцийг </Text>
+            <Text style={styles.inlineLink}>
+              src/fatigueguard/screens/AdviceScreen.tsx
             </Text>
-          </Pressable>
+            <Text style={styles.textPrimary}>
+              {" "}
+              болгож зөөн. Код өвөрлэгдэхгүй, зохих байршин солигдоно.
+            </Text>
+          </Text>
 
-          {showAdvice ? (
-            <View style={styles.advicePanel}>
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <Text style={styles.listItem}>
+            <Text style={styles.number}>2.</Text>
+            <Text style={styles.inlineCode}>index.tsx</Text>
+            <Text style={styles.textPrimary}>
+              {" "}
+              -ийг #21-аас өмнөх хувилбараар сэргээх: камер, калибраци,
+              жоолоодго, дохио, sync.
+            </Text>
+          </Text>
 
-              <View style={styles.priorityBox}>
-                <Text style={styles.priorityLabel}>Priority action</Text>
-                <Text style={styles.priorityText}>
-                  {advice ??
-                    "Find a safe stopping point and take a rest break immediately."}
-                </Text>
-              </View>
+          <Text style={styles.listItem}>
+            <Text style={styles.number}>3.</Text>
+            <Text style={styles.textPrimary}>
+              {" "}
+              AdviceScreen-ийн үрсгалд жолбох. Хамгийн тохиромжтой нь аяллын
+              дүнгэж дээр «Айл зөөлгөе»
+            </Text>
+          </Text>
 
-              <Text style={styles.sectionTitle}>Recommended actions</Text>
-              {recommendations.map((item, index) => (
-                <View key={item} style={styles.row}>
-                  <Text style={styles.check}>{index + 1}</Text>
-                  <Text style={styles.itemText}>{item}</Text>
-                </View>
-              ))}
+          <Text style={styles.paragraph}>
+            <Text style={styles.textPrimary}>Анхаарах: RAG дэлгэц нь </Text>
+            <Text style={styles.inlineCode}>zaaanm7-ий</Text>
+            <Text style={styles.textPrimary}>, </Text>
+            <Text style={styles.inlineCode}>index.tsx</Text>
+            <Text style={styles.textPrimary}>
+              {" "}
+              -ийн UI хуййт айлж. Засвар хийсээд өмне эдгээр хуйббайгаар
+              айлтагаагаа зөрчидлено.
+            </Text>
+          </Text>
 
-              <Pressable
-                style={styles.secondaryButton}
-                accessibilityRole="button"
-              >
-                <Text style={styles.secondaryButtonText}>
-                  Continue driving safely
-                </Text>
-              </Pressable>
+          <Text style={styles.paragraph}>
+            <Text style={styles.textPrimary}>
+              Шинэ branch дээр хийгээд, push хийхгүйтсэйн дээр туршиж үзэх үү?
+            </Text>
+          </Text>
+
+          <View style={styles.metaRow}>
+            <View style={styles.metaActions}>
+              <Text style={styles.metaIcon}>◫</Text>
+              <Text style={styles.metaIcon}>⟲</Text>
+              <Text style={styles.metaIcon}>⎇</Text>
             </View>
-          ) : null}
+            <Text style={styles.metaTime}>3 minutes ago</Text>
+          </View>
+        </View>
+
+        <View style={styles.bottomBar}>
+          <Text style={styles.branchText}>sergeg main</Text>
+
+          <View style={styles.actionsRow}>
+            <Text style={styles.diffText}>+2,556 -118</Text>
+            <Pressable style={styles.prButton} accessibilityRole="button">
+              <Text style={styles.prButtonText}>Create PR</Text>
+            </Pressable>
+            <Text style={styles.closeIcon}>×</Text>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -142,144 +103,137 @@ export default function GuardApp() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f3f3f3",
+    backgroundColor: "#0b1117",
   },
   page: {
     flex: 1,
-    backgroundColor: "#f3f3f3",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
+    backgroundColor: "#0b1117",
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 12,
   },
-  card: {
-    width: "100%",
-    maxWidth: 640,
-    backgroundColor: "#f7f7f7",
-    borderColor: "#d7d7d7",
+  topPill: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
     borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 24,
-    paddingTop: 22,
-    paddingBottom: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: "rgba(148, 163, 184, 0.15)",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginTop: 8,
+    marginBottom: 28,
   },
-  badge: {
-    alignSelf: "flex-start",
-    backgroundColor: "#eaf7ef",
-    color: "#2a7a54",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 18,
+  topPillText: {
+    color: "#f3f4f6",
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "500",
   },
-  title: {
-    color: "#1d1d1f",
-    fontSize: 30,
-    fontWeight: "700",
+  content: {
+    flex: 1,
+    paddingLeft: 6,
+    paddingTop: 8,
+  },
+  paragraph: {
+    color: "#ebedf0",
+    fontSize: 18,
+    lineHeight: 34,
     marginBottom: 12,
   },
-  subtitle: {
-    color: "#4d4d52",
-    fontSize: 13,
+  textPrimary: {
+    color: "#ebedf0",
+  },
+  inlineCode: {
+    color: "#ef7f7f",
+    backgroundColor: "rgba(239, 127, 127, 0.1)",
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    fontFamily: "monospace",
+  },
+  inlineLink: {
+    color: "#6ec8ff",
+    textDecorationLine: "underline",
+    textDecorationColor: "#6ec8ff",
+  },
+  listItem: {
+    color: "#ebedf0",
+    fontSize: 18,
+    lineHeight: 34,
+    marginBottom: 12,
+  },
+  number: {
+    color: "#ebedf0",
     fontWeight: "700",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: 8,
+    marginRight: 8,
   },
-  body: {
-    color: "#4a4a4a",
-    fontSize: 15,
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    opacity: 0.8,
+  },
+  metaActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginRight: 18,
+  },
+  metaIcon: {
+    color: "#d1d5db",
+    fontSize: 17,
+    opacity: 0.9,
+  },
+  metaTime: {
+    color: "#cbd5e1",
+    fontSize: 14,
     lineHeight: 22,
-    marginBottom: 18,
   },
-  priorityBox: {
-    backgroundColor: "#fff7e8",
-    borderLeftWidth: 4,
-    borderLeftColor: "#f59e0b",
+  bottomBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(17, 24, 39, 0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 10,
-    marginBottom: 18,
+    marginTop: 12,
   },
-  priorityLabel: {
-    color: "#8a5b00",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 6,
+  branchText: {
+    color: "#d1d5db",
+    fontSize: 15,
+    fontWeight: "500",
   },
-  priorityText: {
-    color: "#2d2d2d",
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 22,
-  },
-  sectionTitle: {
-    color: "#1d1d1f",
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  row: {
+  actionsRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 12,
-    gap: 12,
+    alignItems: "center",
   },
-  check: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#dff7e9",
-    color: "#1b8f5a",
-    textAlign: "center",
-    lineHeight: 24,
+  diffText: {
+    color: "#34d399",
+    fontSize: 14,
     fontWeight: "700",
-    fontSize: 12,
+    marginRight: 12,
   },
-  itemText: {
-    flex: 1,
-    color: "#2f2f32",
-    fontSize: 15,
+  prButton: {
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 12,
+  },
+  prButtonText: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  closeIcon: {
+    color: "#d1d5db",
+    fontSize: 22,
     lineHeight: 22,
-  },
-  primaryButton: {
-    marginTop: 18,
-    backgroundColor: "#1f8de5",
-    borderRadius: 10,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryButtonText: {
-    color: "#ffffff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  advicePanel: {
-    marginTop: 18,
-  },
-  errorText: {
-    color: "#b42318",
-    fontSize: 13,
-    marginBottom: 10,
-  },
-  secondaryButton: {
-    marginTop: 18,
-    backgroundColor: "#e8f3ff",
-    borderRadius: 10,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryButtonText: {
-    color: "#0d5db8",
-    fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "400",
   },
 });
