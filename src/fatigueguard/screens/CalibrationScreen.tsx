@@ -14,6 +14,7 @@ export function CalibrationScreen({ engine, onBack, onComplete }: {
   const live = useFatigueState(engine);
   const [observation, setObservation] = useState<ComputerVisionObservation | null>(null);
   const quality = evaluateFaceQuality(observation);
+  const calibrationReady = quality.ready || quality.issue === 'eyes-closed';
 
   useEffect(() => { engine.startCalibration(); }, [engine]);
 
@@ -26,10 +27,10 @@ export function CalibrationScreen({ engine, onBack, onComplete }: {
   const progress = Math.round(live.calibrationProgress * 100);
   const message = complete
     ? 'Калибраци амжилттай'
-    : quality.issue
+    : quality.issue && quality.issue !== 'eyes-closed'
       ? faceQualityMessage[quality.issue]
       : live.calibrationPhase === 'eye'
-        ? 'Нүдээ нээлттэй, хөдөлгөөнгүй байлгана уу'
+        ? 'Урагшаа харж, нүдээ хэвийн анивчина уу'
         : 'Толгойгоо эгц, хөдөлгөөнгүй байлгана уу';
 
   return (
@@ -47,15 +48,15 @@ export function CalibrationScreen({ engine, onBack, onComplete }: {
         <View style={styles.back} />
       </View>
 
-      <View pointerEvents="none" style={[styles.faceFrame, (quality.ready || complete) && styles.faceFrameReady]}>
+      <View pointerEvents="none" style={[styles.faceFrame, (calibrationReady || complete) && styles.faceFrameReady]}>
         <View style={[styles.corner, styles.topLeft]} /><View style={[styles.corner, styles.topRight]} />
         <View style={[styles.corner, styles.bottomLeft]} /><View style={[styles.corner, styles.bottomRight]} />
       </View>
 
       <View style={styles.bottomPanel}>
-        <Text style={[styles.status, { color: quality.ready || complete ? colors.normal : colors.warning }]}>{message}</Text>
+        <Text style={[styles.status, { color: calibrationReady || complete ? colors.normal : colors.warning }]}>{message}</Text>
         {!complete ? <Text style={styles.phaseLabel}>{live.calibrationPhase === 'eye' ? '1. НҮДНИЙ ШАЛГАЛТ' : '2. ТОЛГОЙН ШАЛГАЛТ'}</Text> : null}
-        <Text style={styles.hint}>{complete ? 'Нүд болон толгойн хэвийн утгыг амжилттай хадгаллаа.' : quality.ready ? 'Нүд аних, нүүрээ буруулах эсвэл хүрээнээс гарахад хэмжилт 0-ээс эхэлнэ.' : 'Зөв байрлалдаа орсны дараа хэмжилт автоматаар эхэлнэ.'}</Text>
+        <Text style={styles.hint}>{complete ? 'Нүд болон толгойн хэвийн утгыг амжилттай хадгаллаа.' : calibrationReady ? 'Ердийн анивчилт хэмжилтийг таслахгүй. Нүүрээ буруулах эсвэл хүрээнээс гарахад 0-ээс эхэлнэ.' : 'Зөв байрлалдаа орсны дараа хэмжилт автоматаар эхэлнэ.'}</Text>
         <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
         <Text style={styles.progressText}>{complete ? '100%' : `${progress}% · ${Math.ceil((1 - live.calibrationProgress) * 10)} сек`}</Text>
         {complete ? <PrimaryButton label="Жолоодлого эхлүүлэх" onPress={onComplete} /> : null}

@@ -11,6 +11,9 @@ const MAX_HEAD_YAW_DEG = 25;
 const MAX_HEAD_ROLL_DEG = 20;
 /** Толгой савлаж байвал медиан зөв байсан ч суурь найдваргүй. */
 const MAX_PITCH_MAD_DEG = 5;
+/** Бүтэн цонх үнэхээр аниастай байсныг нарийн/онцлог нүднээс ялгах хос босго. */
+const CLOSED_BASELINE_BLINK = 0.7;
+const CLOSED_BASELINE_EAR = 0.1;
 
 /**
  * Нээлттэй нүднээс «аньсан» хүртэлх зай. Хэмжилтээр нээлттэй eyeBlink
@@ -73,11 +76,13 @@ export function calibrate(observations: readonly ComputerVisionObservation[]): B
     return null;
   }
 
-  return deriveBaseline(
-    median(samples.map((s) => s.blink as number)),
-    median(samples.map((s) => s.ear)),
-    median(samples.map((s) => s.pitch)),
-  );
+  const blinkOpen = median(samples.map((s) => s.blink as number));
+  const earOpen = median(samples.map((s) => s.ear));
+  // Нэг хоёр анивчилтыг зөвшөөрөх боловч бүх калибрацийг аниастай хийвэл
+  // тэр төлвийг нээлттэй baseline болгож хадгалахгүй.
+  if (blinkOpen >= CLOSED_BASELINE_BLINK && earOpen < CLOSED_BASELINE_EAR) return null;
+
+  return deriveBaseline(blinkOpen, earOpen, median(samples.map((s) => s.pitch)));
 }
 
 /** Хэмжсэн хэвийн төлвөөс бүх fatigue босгыг нэг дүрмээр гаргана. */

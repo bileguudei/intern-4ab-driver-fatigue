@@ -83,18 +83,35 @@ describe('createFatigueEngine', () => {
     expect(engine.getState().calibrationProgress).toBe(0);
   });
 
-  it('калибрацийн үед нүд анихад хэмжилтийг 0-ээс эхлүүлнэ', () => {
+  it('калибрацийн үеийн ердийн анивчилт хэмжилтийг таслахгүй', () => {
     const { engine } = setup();
     engine.onCameraStatus('running');
     engine.startCalibration();
     for (let t = 0; t <= 4_000; t += 50) engine.accept(observation(true, t));
     expect(engine.getState().calibrationProgress).toBeCloseTo(0.4);
     engine.accept({ ...observation(true, 4_050), leftBlink: 0.8, rightBlink: 0.8, averageEar: 0.06 });
-    expect(engine.getState().calibrationProgress).toBe(0);
-    for (let t = 4_100; t <= 14_050; t += 50) engine.accept(observation(true, t));
-    expect(engine.getState().calibration).toBe('running');
-    engine.accept(observation(true, 14_100));
+    expect(engine.getState().calibrationProgress).toBeCloseTo(0.405);
+    for (let t = 4_100; t <= 10_000; t += 50) engine.accept(observation(true, t));
     expect(engine.getState().calibration).toBe('done');
+  });
+
+  it('нүдээ бүтэн хугацаанд анисан калибрацийг baseline болгохгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) {
+      engine.accept({
+        ...observation(true, t),
+        leftBlink: 0.8,
+        rightBlink: 0.8,
+        leftEar: 0.06,
+        rightEar: 0.06,
+        averageEar: 0.06,
+      });
+    }
+
+    expect(engine.getState().calibration).toBe('failed');
+    expect(engine.getState().baseline).toBeNull();
   });
 
   it('камерын frame тасарвал калибрацийн хэмжилтийг шинээр эхлүүлнэ', () => {
@@ -165,6 +182,58 @@ describe('createFatigueEngine', () => {
 
     for (let t = 10_050; t <= 20_000; t += 50) {
       engine.accept({ ...observation(true, t), headPose: { pitch: 33, yaw: 0, roll: 0 } });
+    }
+
+    expect(engine.getState().level).toBe('critical');
+    expect(engine.getState().baseline?.headPitch).toBeLessThanOrEqual(8);
+  });
+
+  it('жолооч хүрээнээс гараад өөр байрлалд буцвал дахин төвлөрч, анилтыг танина', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 12_000; t += 50) engine.accept(observation(false, t));
+    for (let t = 12_050; t <= 13_400; t += 50) {
+      engine.accept({
+        ...observation(true, t),
+        faceBounds: { x: 0.44, y: 0.24, width: 0.36, height: 0.45, centerX: 0.62, centerY: 0.465 },
+        headPose: { pitch: 30, yaw: 0, roll: 0 },
+      });
+    }
+
+    expect(engine.getState().level).toBe('normal');
+    expect(engine.getState().baseline?.headPitch).toBeCloseTo(30, 0);
+
+    for (let t = 13_450; t <= 15_500; t += 50) {
+      engine.accept({
+        ...observation(true, t),
+        faceBounds: { x: 0.44, y: 0.24, width: 0.36, height: 0.45, centerX: 0.62, centerY: 0.465 },
+        leftEar: 0.06,
+        rightEar: 0.06,
+        averageEar: 0.06,
+        leftBlink: 0.8,
+        rightBlink: 0.8,
+        headPose: { pitch: 30, yaw: 0, roll: 0 },
+      });
+    }
+
+    expect(engine.getState().level).toBe('critical');
+  });
+
+  it('нүүр алга болоод хуучин байрандаа толгой унжсан буцвал baseline болгож сурахгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 12_000; t += 50) engine.accept(observation(false, t));
+    for (let t = 12_050; t <= 14_000; t += 50) {
+      engine.accept({
+        ...observation(true, t),
+        headPose: { pitch: 30, yaw: 0, roll: 0 },
+      });
     }
 
     expect(engine.getState().level).toBe('critical');
