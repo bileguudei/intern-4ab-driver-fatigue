@@ -12,6 +12,7 @@ export type { FatigueLevel };
 
 /** Толгой ийм их бөхийсөн үед eyeBlink найдваргүй (хэмжилт) — анилтыг тоолохгүй. */
 const HEAD_DOWN_IGNORE_EYES_DEG = 15;
+const MAX_CALIBRATION_FRAME_GAP_MS = 500;
 /** Baseline-ийн маш жижиг алхам бүр UI-г дахин render хийхээс хамгаална. */
 const BASELINE_PUBLISH_DELTA_DEG = 0.25;
 
@@ -53,6 +54,7 @@ export function createFatigueEngine({
     level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null,
   };
   let samples: ComputerVisionObservation[] = [];
+  let lastCalibrationTimestamp: number | null = null;
   let baselineTracker: BaselineTracker | null = null;
   let eyes = createEyeTracker();
   let head = createHeadTracker();
@@ -127,13 +129,15 @@ export function createFatigueEngine({
       if (elapsed < CALIBRATION_MS) return;
       const baseline = calibrate(samples);
       samples = [];
+      lastCalibrationTimestamp = null;
       baselineTracker = baseline === null ? null : createBaselineTracker(baseline);
-      update({ baseline, calibration: baseline ? 'done' : 'failed' });
+      update({ baseline, calibration: baseline ? 'done' : 'failed', calibrationProgress: baseline ? 1 : 0 });
     },
 
     /** Жолоочоос шулуун харж, хэвийн анивчихыг хүсээд дуудна. */
     startCalibration() {
       samples = [];
+      lastCalibrationTimestamp = null;
       baselineTracker = null;
       events.length = 0; // өмнөх аяллын явдал шинэ аяллын дүнд орохгүй
       eyes = createEyeTracker();
