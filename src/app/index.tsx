@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
+
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
 
 const recommendations = [
   "Pull over at the nearest safe stop and rest for 15–20 minutes.",
@@ -8,6 +12,68 @@ const recommendations = [
 ];
 
 export default function GuardApp() {
+  const [showAdvice, setShowAdvice] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [advice, setAdvice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleToggleAdvice = async () => {
+    if (showAdvice) {
+      setShowAdvice(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/advice`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId: "session-demo",
+          driverId: 1,
+          fatigueScore: 82,
+          averageFatigueScore: 71,
+          maxFatigueScore: 94,
+          driveDurationMinutes: 165,
+          prolongedEyeClosureCount: 5,
+          headNodCount: 3,
+          perclos: 0.21,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Advice request failed (${response.status})`);
+      }
+
+      const payload = (await response.json()) as {
+        advice?: string;
+        sources?: Array<{ title?: string; source?: string }>;
+      };
+
+      setAdvice(
+        payload.advice ??
+          "Take a break and find a safe stopping area before continuing to drive.",
+      );
+      setShowAdvice(true);
+    } catch (fetchError) {
+      const message =
+        fetchError instanceof Error
+          ? fetchError.message
+          : "Unable to load driver guidance.";
+      setError(message);
+      setAdvice(
+        "Take a break and find a safe stopping area before continuing to drive.",
+      );
+      setShowAdvice(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f3f3f3" />
@@ -22,26 +88,51 @@ export default function GuardApp() {
             short break and a lower-risk driving plan.
           </Text>
 
-          <View style={styles.priorityBox}>
-            <Text style={styles.priorityLabel}>Priority action</Text>
-            <Text style={styles.priorityText}>
-              Find a safe stopping point and take a rest break immediately.
-            </Text>
-          </View>
-
-          <Text style={styles.sectionTitle}>Recommended actions</Text>
-          {recommendations.map((item, index) => (
-            <View key={item} style={styles.row}>
-              <Text style={styles.check}>{index + 1}</Text>
-              <Text style={styles.itemText}>{item}</Text>
-            </View>
-          ))}
-
-          <Pressable style={styles.primaryButton} accessibilityRole="button">
+          <Pressable
+            style={styles.primaryButton}
+            accessibilityRole="button"
+            onPress={handleToggleAdvice}
+            disabled={isLoading}
+          >
             <Text style={styles.primaryButtonText}>
-              Continue driving safely
+              {isLoading
+                ? "Loading guidance..."
+                : showAdvice
+                  ? "Hide guidance"
+                  : "View guidance"}
             </Text>
           </Pressable>
+
+          {showAdvice ? (
+            <View style={styles.advicePanel}>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <View style={styles.priorityBox}>
+                <Text style={styles.priorityLabel}>Priority action</Text>
+                <Text style={styles.priorityText}>
+                  {advice ??
+                    "Find a safe stopping point and take a rest break immediately."}
+                </Text>
+              </View>
+
+              <Text style={styles.sectionTitle}>Recommended actions</Text>
+              {recommendations.map((item, index) => (
+                <View key={item} style={styles.row}>
+                  <Text style={styles.check}>{index + 1}</Text>
+                  <Text style={styles.itemText}>{item}</Text>
+                </View>
+              ))}
+
+              <Pressable
+                style={styles.secondaryButton}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Continue driving safely
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </View>
     </SafeAreaView>
@@ -168,6 +259,27 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#ffffff",
     fontSize: 17,
+    fontWeight: "700",
+  },
+  advicePanel: {
+    marginTop: 18,
+  },
+  errorText: {
+    color: "#b42318",
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  secondaryButton: {
+    marginTop: 18,
+    backgroundColor: "#e8f3ff",
+    borderRadius: 10,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    color: "#0d5db8",
+    fontSize: 15,
     fontWeight: "700",
   },
 });
