@@ -36,6 +36,14 @@ describe('evaluateFaceQuality', () => {
     expect(evaluateFaceQuality({ ...valid, faceDetected: false, faceBounds: null }).issue).toBe('no-face');
   });
 
+  it('машины урд байрлуулсан камерын хол нүүрийг зөвшөөрнө', () => {
+    expect(evaluateFaceQuality({ ...valid, faceBounds: { ...valid.faceBounds!, height: 0.15 } }).ready).toBe(true);
+  });
+
+  it('хэмжилт найдваргүй хэт жижиг нүүрийг зөвшөөрөхгүй', () => {
+    expect(evaluateFaceQuality({ ...valid, faceBounds: { ...valid.faceBounds!, height: 0.08 } }).issue).toBe('too-far');
+  });
+
   it('нүд анисан үед calibration-д зөвшөөрөхгүй', () => {
     expect(evaluateFaceQuality({ ...valid, leftBlink: 0.8, rightBlink: 0.8, averageEar: 0.06 }).issue).toBe('eyes-closed');
   });

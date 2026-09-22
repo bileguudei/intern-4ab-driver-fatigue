@@ -6,7 +6,9 @@ export type FaceQuality = Readonly<{ ready: boolean; issue: FaceQualityIssue }>;
 
 const MAX_CENTER_OFFSET_X = 0.14;
 const MAX_CENTER_OFFSET_Y = 0.16;
-const MIN_FACE_HEIGHT = 0.24;
+// Dashboard/windshield mount дээр жолооч камерын дүрсний багахан хэсгийг
+// эзэлдэг тул calibration-д ч жижиг нүүрийг зөвшөөрнө.
+const MIN_FACE_HEIGHT = 0.12;
 const MAX_FACE_HEIGHT = 0.72;
 const MAX_HEAD_ANGLE = 18;
 const MAX_OPEN_EYE_BLINK_SCORE = 0.45;

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   ComputerVisionCamera,
-  evaluateFaceQuality,
   getComputerVisionCameraPermissionStatus,
   isDriverFatigueVisionAvailable,
   type CameraPermissionStatus,
@@ -42,7 +41,6 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
   const formatted = useMemo(() => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`, [seconds]);
   const current = stateCopy[live.level];
   const active = permission === 'granted' && isDriverFatigueVisionAvailable;
-  const quality = evaluateFaceQuality(observation);
   const faceDetected = observation?.faceDetected === true;
   const eyesVisible = observation?.averageEar !== null && observation?.averageEar !== undefined;
   const headCentered = observation?.headPose !== null && observation?.headPose !== undefined && Math.abs(observation.headPose.yaw) <= 18 && Math.abs(observation.headPose.pitch) <= 18;
@@ -67,11 +65,7 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
       </View> : null}
 
       <View style={styles.guideArea} pointerEvents="none">
-        <View style={[styles.faceGuide, { borderColor: quality.ready ? colors.normal : colors.warning }]}>
-          <View style={[styles.corner, styles.topLeft]} /><View style={[styles.corner, styles.topRight]} />
-          <View style={[styles.corner, styles.bottomLeft]} /><View style={[styles.corner, styles.bottomRight]} />
-        </View>
-        <View style={styles.detectBadge}><Text style={[styles.detectText, { color: quality.ready ? colors.normal : colors.warning }]}>{quality.ready ? '● НҮҮР ЗӨВ БАЙРЛАЛТАЙ' : faceDetected ? '● НҮҮРЭЭ ХҮРЭЭНД ТААРУУЛНА УУ' : '○ НҮҮР ИЛЭРСЭНГҮЙ'}</Text></View>
+        <View style={styles.detectBadge}><Text style={[styles.detectText, { color: faceDetected ? colors.normal : colors.warning }]}>{faceDetected ? '● ЖОЛООЧИЙГ ХЯНАЖ БАЙНА' : '○ НҮҮР ИЛЭРСЭНГҮЙ'}</Text></View>
         {active && live.cameraStatus !== 'running' ? <ActivityIndicator color={colors.white} size="large" style={styles.loader} /> : null}
         {!active ? <Text style={styles.cameraMessage}>{cameraError ?? 'Камерын зөвшөөрөл эсвэл native module шаардлагатай.'}</Text> : null}
       </View>
@@ -109,9 +103,7 @@ const styles = StyleSheet.create({
   microLabel: { color: '#FFFFFF8F', fontSize: 9, fontWeight: '800', letterSpacing: 1 }, time: { color: colors.white, fontSize: 25, fontWeight: '900', fontVariant: ['tabular-nums'], marginTop: 2 },
   statusStack: { alignItems: 'flex-end', gap: 6 }, cameraState: { fontSize: 10, fontWeight: '800' }, levelPill: { borderWidth: 1, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: '#00000050' }, levelText: { fontSize: 11, fontWeight: '900' },
   alert: { marginHorizontal: 14, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, alertText: { fontSize: 13, fontWeight: '900' }, close: { color: colors.white, fontSize: 22 },
-  guideArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 8 },
-  faceGuide: { width: '76%', maxWidth: 330, aspectRatio: 0.73, borderRadius: 180, borderWidth: 2, backgroundColor: 'transparent' },
-  corner: { position: 'absolute', width: 36, height: 36, borderColor: colors.white }, topLeft: { top: -4, left: -4, borderTopWidth: 5, borderLeftWidth: 5, borderTopLeftRadius: 22 }, topRight: { top: -4, right: -4, borderTopWidth: 5, borderRightWidth: 5, borderTopRightRadius: 22 }, bottomLeft: { bottom: -4, left: -4, borderBottomWidth: 5, borderLeftWidth: 5, borderBottomLeftRadius: 22 }, bottomRight: { bottom: -4, right: -4, borderBottomWidth: 5, borderRightWidth: 5, borderBottomRightRadius: 22 },
+  guideArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 12 },
   detectBadge: { marginTop: 12, paddingHorizontal: 13, paddingVertical: 7, borderRadius: 99, backgroundColor: '#07111CE8' }, detectText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 }, loader: { position: 'absolute' }, cameraMessage: { position: 'absolute', color: colors.white, textAlign: 'center', paddingHorizontal: 30 },
   bottomHud: { marginHorizontal: 14, marginBottom: 14, padding: 16, borderRadius: 22, backgroundColor: '#07111CF2', borderWidth: 1, borderColor: '#FFFFFF20' },
   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, levelTitle: { fontSize: 22, fontWeight: '900' }, levelMessage: { color: '#FFFFFFA8', fontSize: 12, marginTop: 2 }, scorePill: { minWidth: 78, height: 50, borderWidth: 2, borderRadius: 16, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' }, score: { fontSize: 27, fontWeight: '900' }, scoreSuffix: { color: '#FFFFFF80', fontSize: 10 },
