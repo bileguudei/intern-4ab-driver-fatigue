@@ -65,9 +65,9 @@ export default function GuardApp() {
     };
   }, []);
 
-  const monitoring =
-    route.kind === "flow" &&
-    (route.screen === "calibration" || route.screen === "driving");
+  // DrivingScreen өөрийн preview camera-г эзэмшинэ. Калибрацийн дэлгэцэд л
+  // харагдахгүй camera хэрэгтэй; driving үед хоёрыг зэрэг mount хийж болохгүй.
+  const calibrating = route.kind === "flow" && route.screen === "calibration";
   const keepAwake =
     route.kind === "flow" &&
     route.screen !== "summary" &&
@@ -165,7 +165,7 @@ export default function GuardApp() {
         {route.kind === "flow" && route.screen === "driving" ? (
           <FatigueAlarm engine={engine} />
         ) : null}
-        {monitoring ? (
+        {calibrating ? (
           <ComputerVisionCamera
             active
             style={styles.monitorCamera}
