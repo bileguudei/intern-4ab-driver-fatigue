@@ -18,8 +18,8 @@ describe('calculateHeadPose', () => {
     });
   });
 
-  it('extracts pitch in degrees from a column-major rotation matrix', () => {
-    const angle = Math.PI / 6;
+  it('normalizes a downward MediaPipe pitch to a positive angle', () => {
+    const angle = -Math.PI / 6;
     const matrix = [
       1, 0, 0, 0,
       0, Math.cos(angle), Math.sin(angle), 0,

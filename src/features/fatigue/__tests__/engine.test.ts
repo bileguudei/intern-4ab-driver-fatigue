@@ -117,4 +117,32 @@ describe('createFatigueEngine', () => {
     }
     expect(engine.getState().level).not.toBe('critical');
   });
+
+  it('калибрацийн дараа жижиг толгойн drift-ийг аажим дагуулна', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 35_000; t += 50) {
+      engine.accept({ ...observation(true, t), headPose: { pitch: 7, yaw: 0, roll: 0 } });
+    }
+
+    expect(engine.getState().level).toBe('normal');
+    expect(engine.getState().baseline?.headPitch).toBeGreaterThan(6);
+  });
+
+  it('удаан толгой унжсан төлвийг шинэ baseline болгож ядаргааг нуухгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 20_000; t += 50) {
+      engine.accept({ ...observation(true, t), headPose: { pitch: 33, yaw: 0, roll: 0 } });
+    }
+
+    expect(engine.getState().level).toBe('critical');
+    expect(engine.getState().baseline?.headPitch).toBeLessThanOrEqual(8);
+  });
 });
