@@ -15,6 +15,15 @@ function frame(t: number, pitch: number): ComputerVisionObservation {
   };
 }
 
+function missingFrame(t: number): ComputerVisionObservation {
+  return {
+    ...frame(t, BASELINE.headPitch),
+    faceDetected: false,
+    faceBounds: null,
+    headPose: null,
+  };
+}
+
 /** Толгойн өнцгийн хэлбэрийг [мс, градус] цэгүүдээр өгч, 15 фр/сек-т шугаман завсарлана. */
 function motion(head: ReturnType<typeof createHeadTracker>, points: [number, number][]): HeadState {
   let state: HeadState = { downDeg: 0, droopMs: 0, quickNods: 0 };
@@ -43,6 +52,40 @@ describe('createHeadTracker', () => {
     const state = motion(head, [[0, 8.6], [500, 38.6], [2_500, 38.6]]);
     expect(state.droopMs).toBeGreaterThan(1_700);
     expect(state.downDeg).toBeCloseTo(30, 0);
+  });
+
+  it('ганц буруу pose frame удаан унжилтыг таслахгүй', () => {
+    const head = createHeadTracker();
+    let state = head.update(frame(0, BASELINE.headPitch), BASELINE);
+    for (let t = 100; t <= 2_000; t += 100) {
+      const pitch = t === 1_000 ? BASELINE.headPitch : BASELINE.headPitch + 22;
+      state = head.update(frame(t, pitch), BASELINE);
+    }
+
+    expect(state.downDeg).toBeGreaterThan(15);
+    expect(state.droopMs).toBeGreaterThanOrEqual(1_800);
+  });
+
+  it('нүүр нэг frame түр алдагдахад удаан унжилтыг үргэлжлүүлнэ', () => {
+    const head = createHeadTracker();
+    let state = head.update(frame(0, BASELINE.headPitch), BASELINE);
+    for (let t = 100; t <= 2_000; t += 100) {
+      state = head.update(t === 1_000 ? missingFrame(t) : frame(t, BASELINE.headPitch + 22), BASELINE);
+    }
+
+    expect(state.downDeg).toBeGreaterThan(15);
+    expect(state.droopMs).toBeGreaterThanOrEqual(1_800);
+  });
+
+  it('нүүр удаан алдагдвал хуучин унжилтыг үргэлжлүүлэхгүй', () => {
+    const head = createHeadTracker();
+    head.update(frame(0, BASELINE.headPitch), BASELINE);
+    for (let t = 100; t <= 900; t += 100) head.update(frame(t, BASELINE.headPitch + 22), BASELINE);
+    head.update(missingFrame(1_000), BASELINE);
+    const state = head.update(missingFrame(1_800), BASELINE);
+
+    expect(state.downDeg).toBe(0);
+    expect(state.droopMs).toBe(0);
   });
 
   it('дээш харах, суурийн ойролцоо хазайлт дохилт биш', () => {
