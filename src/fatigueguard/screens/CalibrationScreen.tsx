@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ComputerVisionCamera, evaluateFaceQuality, faceQualityMessage, type ComputerVisionObservation } from '@/features/computer-vision';
 import type { FatigueEngine } from '@/features/fatigue/engine';
@@ -13,10 +13,19 @@ export function CalibrationScreen({ engine, onBack, onComplete }: {
 }) {
   const live = useFatigueState(engine);
   const [observation, setObservation] = useState<ComputerVisionObservation | null>(null);
+  const completedRef = useRef(false);
   const quality = evaluateFaceQuality(observation);
   const calibrationReady = quality.ready || quality.issue === 'eyes-closed';
 
   useEffect(() => { engine.startCalibration(); }, [engine]);
+
+  useEffect(() => {
+    if (live.calibration !== 'done' || completedRef.current) return;
+
+    completedRef.current = true;
+    const transitionTimer = setTimeout(onComplete, 600);
+    return () => clearTimeout(transitionTimer);
+  }, [live.calibration, onComplete]);
 
   const handleObservation = useCallback((next: ComputerVisionObservation) => {
     setObservation(next);
@@ -59,7 +68,6 @@ export function CalibrationScreen({ engine, onBack, onComplete }: {
         <Text style={styles.hint}>{complete ? 'Нүд болон толгойн хэвийн утгыг амжилттай хадгаллаа.' : calibrationReady ? 'Ердийн анивчилт хэмжилтийг таслахгүй. Нүүрээ буруулах эсвэл хүрээнээс гарахад 0-ээс эхэлнэ.' : 'Зөв байрлалдаа орсны дараа хэмжилт автоматаар эхэлнэ.'}</Text>
         <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
         <Text style={styles.progressText}>{complete ? '100%' : `${progress}% · ${Math.ceil((1 - live.calibrationProgress) * 10)} сек`}</Text>
-        {complete ? <PrimaryButton label="Жолоодлого эхлүүлэх" onPress={onComplete} /> : null}
         {live.calibration === 'failed' ? <PrimaryButton label="Дахин оролдох" onPress={() => engine.startCalibration()} /> : null}
       </View>
     </View>
