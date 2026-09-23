@@ -5,7 +5,6 @@ import {
   getComputerVisionCameraPermissionStatus, requestComputerVisionCameraPermission,
   type CameraPermissionStatus, type ComputerVisionObservation, type FaceQuality,
 } from '@/features/computer-vision';
-import { PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
 
 const REQUIRED_STABLE_MS = 1_500;
@@ -16,6 +15,7 @@ export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; 
   const [stableMs, setStableMs] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const readySince = useRef<number | null>(null);
+  const continuedRef = useRef(false);
 
   useEffect(() => { getComputerVisionCameraPermissionStatus().then(setPermission); }, []);
 
@@ -38,6 +38,12 @@ export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; 
   const granted = permission === 'granted';
   const canContinue = quality.ready && stableMs >= REQUIRED_STABLE_MS;
   const message = cameraError ?? (canContinue ? 'Нүүр зөв байрлалаа' : quality.issue ? faceQualityMessage[quality.issue] : 'Тогтвортой байна уу');
+
+  useEffect(() => {
+    if (!canContinue || continuedRef.current) return;
+    continuedRef.current = true;
+    onContinue();
+  }, [canContinue, onContinue]);
 
   return (
     <View style={styles.screen}>
@@ -67,7 +73,6 @@ export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; 
           <Check label="Төв" good={!['no-face', 'too-far', 'too-close', 'off-center'].includes(quality.issue ?? '')} />
           <Check label="Харц" good={quality.ready} />
         </View>
-        <PrimaryButton label={canContinue ? 'Үргэлжлүүлэх →' : 'Нүүрээ хүрээнд тогтвортой барина уу'} onPress={onContinue} disabled={!canContinue} />
       </View>
     </View>
   );
