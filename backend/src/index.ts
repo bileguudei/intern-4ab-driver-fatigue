@@ -83,6 +83,12 @@ async function readJson(request: Request): Promise<JsonObject> {
   }
 }
 
+/** Хүсэлтийн өгөгдөл буруу үед 500 биш 400 буцаана. */
+class ValidationError extends Error {}
+
+/** Апп нэг хүсэлтэд үүнээс ихийг илгээхгүйгээр хувааж илгээнэ (src/data/sync.ts). */
+const MAX_SYNC_OPERATIONS = 100;
+
 function requiredString(body: JsonObject, key: string) {
   const value = body[key];
   if (typeof value !== "string" || value.length === 0)
@@ -238,8 +244,10 @@ async function syncOperations(request: Request, env: Env) {
   const driverId = parseId(String(body.driver_id ?? ""));
   const operations = Array.isArray(body.operations) ? body.operations : [];
   if (!driverId) throw new Error("driver_id must be a positive integer");
-  if (operations.length > 100)
-    throw new Error("A maximum of 100 operations can be synced at once");
+  if (operations.length > MAX_SYNC_OPERATIONS)
+    throw new ValidationError(
+      `A maximum of ${MAX_SYNC_OPERATIONS} operations can be synced at once`,
+    );
   for (const operation of operations) {
     if (!operation || typeof operation !== "object")
       throw new Error("Invalid sync operation");
@@ -251,29 +259,35 @@ async function syncOperations(request: Request, env: Env) {
       item.payload && typeof item.payload === "object"
         ? (item.payload as JsonObject)
         : {};
-    const operationResult = await env.DB.prepare(
+    // Үйлдлийг нөөц нь амжилттай бичигдсэн үед л, нэг batch-д бүртгэнэ. Өмнө нь
+    // эхлээд бүртгэдэг байсан тул алдаа гарсан үйлдэл дараагийн оролдлогод
+    // «хийгдсэн» гэж алгасагдаж, өгөгдөл нь хэзээ ч хадгалагддаггүй байв.
+    const recordOperation = env.DB.prepare(
       `INSERT INTO sync_operations (operation_id, driver_id, resource_type, resource_id, payload_json)
              VALUES (?, ?, ?, ?, ?) ON CONFLICT(operation_id) DO NOTHING`,
-    )
-      .bind(
-        operationId,
-        driverId,
-        resourceType,
-        resourceId,
-        JSON.stringify(payload),
-      )
-      .run();
-    if (operationResult.meta.changes === 0) continue;
+    ).bind(
+      operationId,
+      driverId,
+      resourceType,
+      resourceId,
+      JSON.stringify(payload),
+    );
     if (resourceType === "session") {
-      const clientId = requiredString(payload, "client_id");
-      await env.DB.prepare(
-        `INSERT INTO driving_sessions (client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET ended_at = excluded.ended_at,
-                 fatigue_score = excluded.fatigue_score, warning_count = excluded.warning_count,
-                 critical_event_count = excluded.critical_event_count, status = excluded.status,
-                 updated_at = CURRENT_TIMESTAMP`,
+      const applied = await env.DB.prepare(
+        "SELECT 1 FROM sync_operations WHERE operation_id = ?",
       )
-        .bind(
+        .bind(operationId)
+        .first();
+      if (applied) continue;
+      const clientId = requiredString(payload, "client_id");
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO driving_sessions (client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET ended_at = excluded.ended_at,
+                   fatigue_score = excluded.fatigue_score, warning_count = excluded.warning_count,
+                   critical_event_count = excluded.critical_event_count, status = excluded.status,
+                   updated_at = CURRENT_TIMESTAMP`,
+        ).bind(
           clientId,
           driverId,
           typeof payload.started_at === "string"
@@ -286,20 +300,27 @@ async function syncOperations(request: Request, env: Env) {
             ? payload.critical_event_count
             : 0,
           typeof payload.status === "string" ? payload.status : "completed",
-        )
-        .run();
+        ),
+        recordOperation,
+      ]);
     } else if (resourceType === "fatigue_event") {
+      // Явдал client_id-аараа давхардахгүй тул дахин илгээхэд аюулгүй. Тиймээс
+      // sync_operations-ийг шалгахгүй. Ингэснээр өмнө нь бүртгэгдсэн ч
+      // хадгалагдаагүй үлдсэн явдлууд дахин илгээхэд сэргэнэ.
       const clientId = requiredString(payload, "client_id");
-      const sessionId = parseId(String(payload.session_id ?? ""));
-      if (!sessionId)
-        throw new Error("fatigue_event payload requires session_id");
-      await env.DB.prepare(
-        `INSERT INTO fatigue_events (client_id, session_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO NOTHING`,
-      )
-        .bind(
+      const session = await findEventSession(env, driverId, payload);
+      if (!session)
+        throw new ValidationError(
+          `Invalid fatigue_event ${clientId}: unknown session`,
+        );
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO fatigue_events (client_id, session_id, session_client_id, driver_id, level, fatigue_score, blink_rate, yawn_count, event_at, media_key, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO NOTHING`,
+        ).bind(
           clientId,
-          sessionId,
+          session.id,
+          session.client_id,
           driverId,
           requiredString(payload, "level"),
           numberOrNull(payload.fatigue_score),
@@ -312,11 +333,42 @@ async function syncOperations(request: Request, env: Env) {
           payload.metadata && typeof payload.metadata === "object"
             ? JSON.stringify(payload.metadata)
             : null,
-        )
-        .run();
+        ),
+        recordOperation,
+      ]);
+    } else {
+      await recordOperation.run();
     }
   }
   return response({ synced: operations.length });
+}
+
+/**
+ * Явдлын сессийг олно. Апп сессийг зөвхөн өөрийн client_id-аар мэддэг тул
+ * `session_client_id`-г үндсэн гэж үзэж, серверийн `session_id`-г нөөц болгоно.
+ */
+async function findEventSession(
+  env: Env,
+  driverId: number,
+  payload: JsonObject,
+) {
+  if (
+    typeof payload.session_client_id === "string" &&
+    payload.session_client_id.length > 0
+  ) {
+    return env.DB.prepare(
+      "SELECT id, client_id FROM driving_sessions WHERE client_id = ? AND driver_id = ?",
+    )
+      .bind(payload.session_client_id, driverId)
+      .first<{ id: number; client_id: string }>();
+  }
+  const sessionId = parseId(String(payload.session_id ?? ""));
+  if (!sessionId) return null;
+  return env.DB.prepare(
+    "SELECT id, client_id FROM driving_sessions WHERE id = ? AND driver_id = ?",
+  )
+    .bind(sessionId, driverId)
+    .first<{ id: number; client_id: string }>();
 }
 
 async function driverHistory(url: URL, env: Env, driverId: number) {
@@ -761,6 +813,7 @@ export default {
       const message =
         error instanceof Error ? error.message : "Internal server error";
       const status =
+        error instanceof ValidationError ||
         message.includes("required") ||
         message.includes("Invalid") ||
         message.includes("must be") ||

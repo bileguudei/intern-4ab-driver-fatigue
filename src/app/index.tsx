@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, BackHandler, StatusBar, StyleSheet, View } from "react-native";
 import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { createFatigueEngine } from "@/features/fatigue/engine";
+import {
+  createFatigueEngine,
+  type FatigueEngine,
+} from "@/features/fatigue/engine";
 import { FatigueAlarm } from "@/features/fatigue/fatigue-alarm";
 import { KeepScreenAwake } from "@/features/fatigue/keep-screen-awake";
 import { BottomNav } from "@/fatigueguard/components/BottomNav";
@@ -20,6 +23,7 @@ import {
   addLocalFatigueEvent,
   completeLocalSession,
   createLocalSession,
+  finalizeAbandonedSessions,
 } from "@/data/local-db";
 import { syncPendingData } from "@/data/sync";
 
@@ -31,6 +35,29 @@ const emptySummary: SessionSummary = {
   avgScore: 24,
 };
 
+/** Engine-ийн шинэ warning, critical явдлуудыг локал санд бичнэ. */
+async function saveFatigueEvents(
+  engine: FatigueEngine,
+  sessionClientId: string,
+  saved: Set<string>,
+) {
+  for (const event of engine.getEvents()) {
+    if (event.type !== "fatigue_warning" && event.type !== "fatigue_critical")
+      continue;
+    if (saved.has(event.id)) continue;
+    saved.add(event.id);
+    await addLocalFatigueEvent({
+      client_id: `event:${event.id}`,
+      session_client_id: sessionClientId,
+      driver_id: 1,
+      level: event.type === "fatigue_warning" ? "warning" : "critical",
+      fatigue_score: null,
+      event_at: new Date(event.occurredAt).toISOString(),
+      metadata_json: null,
+    });
+  }
+}
+
 export default function GuardApp() {
   const [route, setRoute] = useState<Route>({ kind: "tabs", tab: "home" });
   const [summary, setSummary] = useState<SessionSummary>(emptySummary);
@@ -38,12 +65,33 @@ export default function GuardApp() {
   // хэрэглэгч гарч чадахгүй давталтад ордог.
   const [cameraAutoContinue, setCameraAutoContinue] = useState(true);
   const activeSessionClientId = useRef<string | null>(null);
+  const savedEventIds = useRef(new Set<string>());
   const engine = useMemo(() => createFatigueEngine(), []);
 
+  // Явдлыг гармагц хадгална. Өмнө нь зөвхөн «дуусгах» дарахад бичдэг байсан
+  // тул апп унах, хаагдахад тухайн аяллын бүх явдал алдагддаг байв.
+  useEffect(
+    () =>
+      engine.subscribe(() => {
+        const sessionClientId = activeSessionClientId.current;
+        if (sessionClientId === null) return;
+        void saveFatigueEvents(
+          engine,
+          sessionClientId,
+          savedEventIds.current,
+        ).catch((error) => console.warn("Unable to save fatigue event:", error));
+      }),
+    [engine],
+  );
+
   useEffect(() => {
-    void syncPendingData().catch((error) =>
-      console.warn("Background sync unavailable:", error),
-    );
+    // Өмнө нь дуусаагүй үлдсэн сессийг эхлээд хааж, дараа нь sync хийнэ.
+    void finalizeAbandonedSessions()
+      .catch((error) =>
+        console.warn("Unable to close unfinished sessions:", error),
+      )
+      .then(() => syncPendingData())
+      .catch((error) => console.warn("Background sync unavailable:", error));
     const networkSubscription = Network.addNetworkStateListener(
       ({ isConnected }) => {
         if (isConnected)
@@ -113,25 +161,13 @@ export default function GuardApp() {
       await completeLocalSession(clientId, {
         endedAt: new Date().toISOString(),
         fatigueScore: data.maxScore,
+        avgScore: data.avgScore,
         warningCount: data.warningCount,
         criticalEventCount: data.criticalCount,
       });
-      for (const event of engine.getEvents()) {
-        if (
-          event.type !== "fatigue_warning" &&
-          event.type !== "fatigue_critical"
-        )
-          continue;
-        await addLocalFatigueEvent({
-          client_id: `event:${event.id}`,
-          session_client_id: clientId,
-          driver_id: 1,
-          level: event.type === "fatigue_warning" ? "warning" : "critical",
-          fatigue_score: null,
-          event_at: new Date(event.occurredAt).toISOString(),
-          metadata_json: null,
-        });
-      }
+      await saveFatigueEvents(engine, clientId, savedEventIds.current);
+      // Дараагийн аяллын калибрацийн үеийн явдлыг энэ сесст бичихгүй.
+      activeSessionClientId.current = null;
       void syncPendingData().catch((error) =>
         console.warn("Session sync deferred:", error),
       );

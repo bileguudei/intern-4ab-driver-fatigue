@@ -1,11 +1,39 @@
 import { getPendingSyncOperations, markSynced } from './local-db';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE ?? 'http://127.0.0.1:8787';
+/** Сервер нэг хүсэлтэд үүнээс олон үйлдэл хүлээж авдаггүй (backend MAX_SYNC_OPERATIONS). */
+const MAX_OPERATIONS_PER_REQUEST = 100;
 
-export async function syncPendingData(driverId = 1) {
+let running: Promise<number> | null = null;
+let rerun = false;
+
+/**
+ * Апп нээгдэх, сүлжээ сэргэх, жолоодлого дуусах үед зэрэг дуудагддаг. Нэг л sync
+ * ажиллаж, түүний үеэр ирсэн хүсэлтийг дуусмагц дахин нэг удаа ажиллуулна.
+ */
+export function syncPendingData(driverId = 1): Promise<number> {
+    if (running) {
+        rerun = true;
+        return running;
+    }
+    running = (async () => {
+        let synced = 0;
+        do {
+            rerun = false;
+            synced += await syncOnce(driverId);
+        } while (rerun);
+        return synced;
+    })().finally(() => {
+        running = null;
+    });
+    return running;
+}
+
+async function syncOnce(driverId: number) {
     const pending = await getPendingSyncOperations(driverId);
     if (pending.sessions.length === 0 && pending.events.length === 0) return 0;
 
+    // Сессүүд эхэнд байх тул явдал бүрийн сесс өмнөх эсвэл ижил хүсэлтэд очно.
     const operations = [
         ...pending.sessions.map((session) => ({
             operation_id: `session:${session.client_id}:${session.revision}`,
@@ -39,19 +67,21 @@ export async function syncPendingData(driverId = 1) {
         })),
     ];
 
-    const response = await fetch(`${API_BASE_URL}/api/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driver_id: driverId, operations }),
-    });
-    if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error ?? `Sync failed (${response.status})`);
+    for (let start = 0; start < operations.length; start += MAX_OPERATIONS_PER_REQUEST) {
+        const batch = operations.slice(start, start + MAX_OPERATIONS_PER_REQUEST);
+        const response = await fetch(`${API_BASE_URL}/api/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ driver_id: driverId, operations: batch }),
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw new Error(payload?.error ?? `Sync failed (${response.status})`);
+        }
+        await markSynced({
+            sessions: batch.filter((operation) => operation.resource_type === 'session').map((operation) => operation.resource_id),
+            events: batch.filter((operation) => operation.resource_type === 'fatigue_event').map((operation) => operation.resource_id),
+        });
     }
-
-    await markSynced({
-        sessions: pending.sessions.map((session) => session.client_id),
-        events: pending.events.map((event) => event.client_id),
-    });
     return operations.length;
 }
