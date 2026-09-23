@@ -61,6 +61,8 @@ export function createFatigueEngine({
   let head = createHeadTracker();
   let yawn = createYawnTracker();
   let session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
+  /** Калибрацийн дараа нүүр тасралтгүй алга болсон эхний фрэймийн цаг. */
+  let faceMissingSince: number | null = null;
 
   const update = (next: Partial<FatigueEngineState>) => {
     const changed = (Object.keys(next) as (keyof FatigueEngineState)[]).some((key) => next[key] !== state[key]);
@@ -80,6 +82,8 @@ export function createFatigueEngine({
   };
 
   const assess = (observation: ComputerVisionObservation, baseline: Baseline) => {
+    faceMissingSince = observation.faceDetected ? null : (faceMissingSince ?? observation.timestampMs);
+    const faceMissingMs = faceMissingSince === null ? null : observation.timestampMs - faceMissingSince;
     const headState = head.update(observation, baseline);
     const yawnState = yawn.update(observation);
     // Толгой калибрацийн байрлалаас их зөрөхөд eyeBlink дангаараа найдваргүй.
@@ -91,7 +95,7 @@ export function createFatigueEngine({
     const ignoreEyes = yawnState.open;
     const eyeState = ignoreEyes ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const score = computeScore(eyeState, headState, yawnState);
-    const level = nextLevel(state.level, score, eyeState, headState, yawnState);
+    const level = nextLevel(state.level, score, eyeState, headState, yawnState, faceMissingMs);
     session = { ...session, scoreSum: session.scoreSum + score, scoreCount: session.scoreCount + 1, maxScore: Math.max(session.maxScore, score) };
     const escalated = level !== state.level && level !== 'normal';
     if (escalated) record(level === 'critical' ? 'fatigue_critical' : 'fatigue_warning');
@@ -147,6 +151,7 @@ export function createFatigueEngine({
       samples = [];
       lastCalibrationTimestamp = null;
       baselineTracker = null;
+      faceMissingSince = null;
       events.length = 0; // өмнөх аяллын явдал шинэ аяллын дүнд орохгүй
       eyes = createEyeTracker();
       head = createHeadTracker();
@@ -182,6 +187,8 @@ export function createFatigueEngine({
       const stopped = wasRunning && !isRunning;
       const resumed = !wasRunning && isRunning && events.some((e) => e.type === 'camera_stopped');
       if (stopped) record('camera_stopped');
+      // Камер зогссон хугацааг нүүр алга болсон хугацаанд оруулахгүй.
+      if (!isRunning) faceMissingSince = null;
       if (!isRunning && state.calibration === 'running') resetCalibrationWindow();
       if (resumed) record('camera_resumed');
       update({ cameraStatus, monitoring: isRunning && state.monitoring });

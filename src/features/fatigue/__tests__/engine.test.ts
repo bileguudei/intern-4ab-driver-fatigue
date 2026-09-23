@@ -288,4 +288,78 @@ describe('createFatigueEngine', () => {
     expect(engine.getState().level).toBe('critical');
     expect(engine.getState().baseline?.headPitch).toBeLessThanOrEqual(8);
   });
+
+  it('critical үед нүүр алга болбол дохиог унтраахгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+    for (let t = 10_050; t <= 12_100; t += 50) engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8 });
+    expect(engine.getState().level).toBe('critical');
+
+    // Толгой бүрэн унжиж landmark алга болсон 5 секунд.
+    const levels = new Set<string>();
+    for (let t = 12_150; t <= 17_000; t += 50) {
+      engine.accept(observation(false, t));
+      levels.add(engine.getState().level);
+    }
+    expect([...levels]).toEqual(['critical']);
+  });
+
+  it('нүүр удаан харагдахгүй бол 2 сек-д warning, 3 сек-д critical болно', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    for (let t = 10_050; t <= 12_000; t += 50) engine.accept(observation(false, t));
+    expect(engine.getState().level).toBe('normal');
+    engine.accept(observation(false, 12_050));
+    expect(engine.getState().level).toBe('warning');
+    for (let t = 12_100; t <= 13_050; t += 50) engine.accept(observation(false, t));
+    expect(engine.getState().level).toBe('critical');
+
+    for (let t = 13_100; t <= 15_000; t += 50) engine.accept(observation(true, t));
+    expect(engine.getState().level).toBe('normal');
+  });
+
+  it('камер зогссон хугацааг нүүр алга болсон гэж тооцохгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    engine.accept(observation(false, 10_050));
+    engine.onCameraStatus('stopped');
+    engine.onCameraStatus('running');
+    engine.accept(observation(false, 20_000));
+    expect(engine.getState().level).toBe('normal');
+  });
+
+  it('тонгойсон ч сэрүүн, тогтвортой суувал шинэ байрлалд дасаж дохиог зогсооно', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    const leaned = { x: 0.29, y: 0.28, width: 0.42, height: 0.52, centerX: 0.5, centerY: 0.54 };
+    for (let t = 10_050; t <= 12_100; t += 50) engine.accept({ ...observation(true, t), faceBounds: leaned });
+    expect(engine.getState().level).toBe('critical');
+
+    for (let t = 12_150; t <= 22_500; t += 50) engine.accept({ ...observation(true, t), faceBounds: leaned });
+    expect(engine.getState().level).toBe('normal');
+  });
+
+  it('тонгойсон байрлалд толгой бөхийсөн хэвээр бол шинэ байрлал гэж үзэхгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    const leaned = { x: 0.29, y: 0.28, width: 0.42, height: 0.52, centerX: 0.5, centerY: 0.54 };
+    for (let t = 10_050; t <= 22_500; t += 50) {
+      engine.accept({ ...observation(true, t), faceBounds: leaned, headPose: { pitch: 11, yaw: 0, roll: 0 } });
+    }
+    expect(engine.getState().level).toBe('critical');
+  });
 });
