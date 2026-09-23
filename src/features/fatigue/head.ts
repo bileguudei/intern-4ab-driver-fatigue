@@ -18,6 +18,13 @@ const FORWARD_LEAN_END_RATIO = 0.05;
 /** Ойртож нүүр томрох нь доош шилжилтийг дэмжих боловч дангаараа дохио болохгүй. */
 const FACE_SCALE_WEIGHT = 0.25;
 /**
+ * Тонгойсон байрлалд нүд нээлттэй, толгой эгц, хүрээ тогтвортой ийм удаан байвал
+ * суудал эсвэл утасны шинэ байрлал гэж үзэж урагш бөхийлтийн суурийг шинэчилнэ.
+ * Богино тонгойлт critical хэвээр илэрнэ. Зөвхөн сэрүүн жолоочид дохио аяллын
+ * турш тасралтгүй дуугарахаас сэргийлнэ. Ердийн анивчилт хугацааг тасалдуулахгүй.
+ */
+const LEAN_REANCHOR = { stableMs: 10_000, maxRange: 0.04, blinkGraceMs: 500 };
+/**
  * «Унжаад гэнэт өндийх» жижиг дохилт. Хэмжилтэд толгой 0.75 сек-т +30° хүртэл
  * бөхийсөн. Удаан доош харах (утас, самбар) 3 сек-ээс урт тул тоологдохгүй.
  */
@@ -37,6 +44,23 @@ export type HeadState = Readonly<{
 
 type Episode = { start: number; peak: number; peakAt: number; last: number };
 type DownSample = { t: number; value: number };
+type SteadyLean = { since: number; minY: number; maxY: number; minH: number; maxH: number };
+
+/** Тонгойсон байрлал тогтвортой үргэлжилж буй эсэхийг хүрээний хэлбэлзлээр шалгана. */
+function extendSteadyLean(previous: SteadyLean | null, t: number, bounds: FaceBounds): SteadyLean {
+  const fresh = { since: t, minY: bounds.centerY, maxY: bounds.centerY, minH: bounds.height, maxH: bounds.height };
+  if (previous === null) return fresh;
+  const next = {
+    since: previous.since,
+    minY: Math.min(previous.minY, bounds.centerY),
+    maxY: Math.max(previous.maxY, bounds.centerY),
+    minH: Math.min(previous.minH, bounds.height),
+    maxH: Math.max(previous.maxH, bounds.height),
+  };
+  const steady =
+    next.maxY - next.minY <= LEAN_REANCHOR.maxRange && next.maxH - next.minH <= LEAN_REANCHOR.maxRange;
+  return steady ? next : fresh;
+}
 
 const isQuickNod = (episode: Episode, end: number) =>
   end - episode.start >= QUICK_NOD.minMs &&
@@ -52,6 +76,8 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
   let anchorBounds: FaceBounds | null = initialBounds;
   let forwardSamples: DownSample[] = [];
   let filteredForwardLean = 0;
+  let steadyLean: SteadyLean | null = null;
+  let eyesOpenAt: number | null = null;
 
   return {
     update(observation: ComputerVisionObservation, baseline: Baseline): HeadState {
@@ -68,9 +94,11 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
         forwardSamples = [];
         filteredDown = 0;
         filteredForwardLean = 0;
+        eyesOpenAt = null;
       }
 
       if (!valid) {
+        steadyLean = null;
         const held = episode !== null && !frameGap && t - episode.last <= TRACKING_LOSS_GRACE_MS;
         if (!held) {
           episode = null;
@@ -111,7 +139,27 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
           .sort((a, b) => a - b);
         filteredForwardLean = sortedForwardLean[Math.floor(sortedForwardLean.length / 2)];
       }
-      const forwardLean = filteredForwardLean;
+      let forwardLean = filteredForwardLean;
+
+      // Тонгойсон ч сэрүүн, тогтвортой байвал шинэ байрлал гэж хүлээн авна.
+      const blink =
+        observation.leftBlink !== null && observation.rightBlink !== null
+          ? (observation.leftBlink + observation.rightBlink) / 2
+          : null;
+      if (blink !== null && blink < baseline.blinkClosed) eyesOpenAt = t;
+      const awake = eyesOpenAt !== null && t - eyesOpenAt <= LEAN_REANCHOR.blinkGraceMs;
+      if (bounds !== null && forwardLean >= FORWARD_LEAN_END_RATIO && awake && Math.abs(down) < NOD_END_DEG) {
+        steadyLean = extendSteadyLean(steadyLean, t, bounds);
+        if (t - steadyLean.since >= LEAN_REANCHOR.stableMs) {
+          anchorBounds = bounds;
+          steadyLean = null;
+          forwardSamples = [];
+          filteredForwardLean = 0;
+          forwardLean = 0;
+        }
+      } else {
+        steadyLean = null;
+      }
 
       const current: Episode | null = episode;
       if (current !== null && down < NOD_END_DEG && forwardLean < FORWARD_LEAN_END_RATIO) {
