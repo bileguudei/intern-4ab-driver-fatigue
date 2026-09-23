@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import worker from "./index";
 import {
@@ -29,15 +29,50 @@ const makeVectorize = (matches: Array<Record<string, unknown>> = []) => ({
   upsert: async () => ({ ok: true }),
 });
 
-const makeAi = (responses: unknown[] = []) => ({
-  run: async () => {
-    const value = responses.shift();
-    if (value === undefined) {
-      return { data: [[0.1, 0.2, 0.3]] };
-    }
-    return value;
-  },
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
+
+function mockGeminiFetch(options: {
+  adviceText?: string;
+  throwOnEmbed?: boolean;
+} = {}) {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes(":batchEmbedContents")) {
+      if (options.throwOnEmbed) throw new Error("Gemini embedding failure");
+      const body = JSON.parse((init?.body as string) ?? "{}") as {
+        requests?: unknown[];
+      };
+      const count = body.requests?.length ?? 1;
+      return new Response(
+        JSON.stringify({
+          embeddings: Array.from({ length: count }, () => ({
+            values: [0.1, 0.2, 0.3],
+          })),
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.includes(":generateContent")) {
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: options.adviceText ?? "Take a break." }],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+    throw new Error(`Unexpected fetch to ${url}`);
+  }) as typeof fetch;
+}
 
 describe("RAG helpers", () => {
   it("splits text into overlapping chunks", () => {
@@ -131,15 +166,14 @@ describe("Advice API", () => {
       },
     ];
 
+    globalThis.fetch = mockGeminiFetch({
+      adviceText:
+        "Take a break and stop driving if your fatigue score remains elevated.",
+    });
+
     const env = {
       DB: makeDb(ragRows),
-      AI: makeAi([
-        { data: [[0.1, 0.2, 0.3]] },
-        {
-          response:
-            "Take a break and stop driving if your fatigue score remains elevated.",
-        },
-      ]),
+      GEMINI_API_KEY: "test-key",
       VECTORIZE: makeVectorize([
         { id: "chunk-1", score: 0.91, metadata: { chunkId: "chunk-1" } },
       ]),
@@ -173,15 +207,14 @@ describe("Advice API", () => {
   });
 
   it("returns an empty-source response when retrieval is irrelevant", async () => {
+    globalThis.fetch = mockGeminiFetch({
+      adviceText:
+        "No direct fatigue guidance was retrieved, so consider pulling over and resting.",
+    });
+
     const env = {
       DB: makeDb(),
-      AI: makeAi([
-        { data: [[0.1, 0.2, 0.3]] },
-        {
-          response:
-            "No direct fatigue guidance was retrieved, so consider pulling over and resting.",
-        },
-      ]),
+      GEMINI_API_KEY: "test-key",
       VECTORIZE: makeVectorize([]),
     } as any;
 
@@ -212,7 +245,7 @@ describe("Advice API", () => {
       }),
       {
         DB: makeDb(),
-        AI: makeAi(),
+        GEMINI_API_KEY: "test-key",
         VECTORIZE: makeVectorize(),
       } as any,
     );
@@ -222,14 +255,12 @@ describe("Advice API", () => {
     expect(json.error).toContain("fatigueScore");
   });
 
-  it("fails safely when the Workers AI embedding call errors", async () => {
+  it("fails safely when the Gemini embedding call errors", async () => {
+    globalThis.fetch = mockGeminiFetch({ throwOnEmbed: true });
+
     const env = {
       DB: makeDb(),
-      AI: {
-        run: async () => {
-          throw new Error("Workers AI failure");
-        },
-      },
+      GEMINI_API_KEY: "test-key",
       VECTORIZE: makeVectorize(),
     } as any;
 
@@ -244,6 +275,6 @@ describe("Advice API", () => {
 
     expect(response.status).toBe(500);
     const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Workers AI");
+    expect(json.error).toContain("Gemini");
   });
 });
