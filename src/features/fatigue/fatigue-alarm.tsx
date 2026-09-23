@@ -79,6 +79,11 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
       criticalOn = false;
       keepPlaying.remove();
       Vibration.cancel();
+      // expo-audio-ийн remove() тоглуулагчийг зөвхөн registry-ээс хасдаг, дууг
+      // зогсоодоггүй. Зогсоохгүй бол давтагддаг critical дохио жолоодлого
+      // дууссаны дараа ч дуугарсаар байна.
+      warning.pause();
+      critical.pause();
       warning.remove();
       critical.remove();
     };
