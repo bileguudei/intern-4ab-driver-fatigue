@@ -21,6 +21,13 @@ export type SessionSummary = {
   longClosureCount?: number;
   /** Жижиг, хурдан толгой дохилтын тоо. */
   quickNodCount?: number;
+  /** GPS-ээр тооцсон явсан зай. */
+  distanceKm?: number;
+  /** Явж байх үеийн дундаж хурд. Хэмжээгүй бол null. */
+  avgSpeedKmh?: number | null;
+  maxSpeedKmh?: number | null;
+  /** Нүд аньсан хугацаанд машин явсан хамгийн их зай. */
+  maxBlindDistanceM?: number;
 };
 
 export type FatigueState = "normal" | "warning" | "critical";

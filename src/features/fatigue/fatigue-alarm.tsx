@@ -5,6 +5,7 @@ import { Vibration } from 'react-native';
 
 import { createAlarmController } from './alarm';
 import { createBackgroundAlert } from './background-alert';
+import { createBreakAlert } from './break-alert';
 import type { FatigueEngine } from './engine';
 import { createStoppedReminders, notifyMonitoringStopped } from './stopped-reminders';
 
@@ -64,9 +65,18 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
         void reminders.cancel();
       },
     });
+    // Тасралтгүй удаан жолоодоход завсарлага авахыг зөөлөн дуугаар сануулна.
+    // Critical дуугарч байвал давхардуулахгүй — Android-д чичиргээг нь тасалдаг.
+    const onBreak = createBreakAlert(() => {
+      if (criticalOn) return;
+      warning.seekTo(0);
+      warning.play();
+      Vibration.vibrate(400);
+    });
     const unsubscribe = engine.subscribe((state) => {
       onState(state);
       onBackground(state);
+      onBreak(state);
     });
 
     return () => {

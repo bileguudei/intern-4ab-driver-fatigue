@@ -49,6 +49,12 @@ async function syncOnce(driverId: number) {
                 critical_event_count: session.critical_event_count,
                 status: session.status,
                 revision: session.revision,
+                // Серверт тусдаа багана хараахан байхгүй. sync_operations-ийн
+                // payload_json-д хадгалагдаж, дараа нь багана руу шилжүүлж болно.
+                avg_score: session.avg_score,
+                distance_km: session.distance_km,
+                avg_speed_kmh: session.avg_speed_kmh,
+                max_speed_kmh: session.max_speed_kmh,
             },
         })),
         ...pending.events.map((event) => ({

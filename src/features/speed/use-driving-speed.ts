@@ -8,15 +8,20 @@ const STALE_MS = 5_000;
 
 /**
  * Жолоодлогын үеийн хурдыг GPS-ээс км/ц-ээр гаргана. Байршлын зөвшөөрөл
- * өгөөгүй, эсвэл дохио тасарсан үед null.
+ * өгөөгүй, эсвэл дохио тасарсан үед null. `onSpeed` нь байршил ирэх бүрд
+ * (утга өөрчлөгдөөгүй ч) дуудагдана — зай, хугацааг тооцоход хэрэгтэй.
  */
-export function useDrivingSpeed(): number | null {
+export function useDrivingSpeed(onSpeed?: (speedKmh: number | null) => void): number | null {
   const [speedKmh, setSpeedKmh] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let subscription: { remove: () => void } | null = null;
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
+    const publish = (value: number | null) => {
+      setSpeedKmh(value);
+      onSpeed?.(value);
+    };
 
     const start = async () => {
       const { granted } = await Location.requestForegroundPermissionsAsync();
@@ -24,9 +29,9 @@ export function useDrivingSpeed(): number | null {
       const watcher = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1_000, distanceInterval: 0 },
         (location) => {
-          setSpeedKmh(toKmh(location.coords.speed));
+          publish(toKmh(location.coords.speed));
           if (staleTimer !== null) clearTimeout(staleTimer);
-          staleTimer = setTimeout(() => setSpeedKmh(null), STALE_MS);
+          staleTimer = setTimeout(() => publish(null), STALE_MS);
         },
       );
       if (cancelled) watcher.remove();
@@ -39,7 +44,7 @@ export function useDrivingSpeed(): number | null {
       subscription?.remove();
       if (staleTimer !== null) clearTimeout(staleTimer);
     };
-  }, []);
+  }, [onSpeed]);
 
   return speedKmh;
 }

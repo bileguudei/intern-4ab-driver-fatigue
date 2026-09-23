@@ -414,4 +414,154 @@ describe('createFatigueEngine', () => {
     expect(summary.quickNodCount).toBe(1);
     expect(summary.perclos).toBeGreaterThan(0);
   });
+
+  describe('хурд', () => {
+    const calibrated = () => {
+      const context = setup();
+      context.engine.onCameraStatus('running');
+      context.engine.startCalibration();
+      for (let t = 0; t <= 10_000; t += 50) context.engine.accept(observation(true, t));
+      return context;
+    };
+    const headDown = (t: number) => ({ ...observation(true, t), headPose: { pitch: 33, yaw: 0, roll: 0 } });
+    const eyesClosed = (t: number) => ({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8 });
+
+    it('зогсож байхад толгойн дохиог хасаж, хурд тодорхойгүй болоход сэргээнэ', () => {
+      const { engine, tick } = calibrated();
+      tick(1_000);
+      engine.onSpeed(0);
+      expect(engine.getState().stationary).toBe(true);
+      // Зогсоод утас руу доош харсан 3 секунд.
+      for (let t = 10_050; t <= 13_000; t += 50) engine.accept(headDown(t));
+      expect(engine.getState().level).toBe('normal');
+
+      // GPS тасарвал аюулгүйн үүднээс дохиог хэвээр ажиллуулна.
+      tick(1_000);
+      engine.onSpeed(null);
+      expect(engine.getState().stationary).toBe(false);
+      for (let t = 13_050; t <= 15_000; t += 50) engine.accept(headDown(t));
+      expect(engine.getState().level).toBe('critical');
+    });
+
+    it('зогсож байхад удаан анилтад зөвхөн warning өгнө', () => {
+      const { engine, tick } = calibrated();
+      tick(1_000);
+      engine.onSpeed(2);
+      for (let t = 10_050; t <= 12_100; t += 50) engine.accept(eyesClosed(t));
+      expect(engine.getState().level).toBe('warning');
+    });
+
+    it('зогссон эсэхийг гистерезисээр шийднэ', () => {
+      const { engine, tick } = calibrated();
+      const speeds: [number, boolean][] = [[3, true], [7, true], [12, false], [7, false], [4, true]];
+      for (const [kmh, stationary] of speeds) {
+        tick(1_000);
+        engine.onSpeed(kmh);
+        expect(engine.getState().stationary).toBe(stationary);
+      }
+    });
+
+    it('өндөр хурдад 1.1 сек аньсанд critical өгнө', () => {
+      const levelAfterClosure = (kmh: number) => {
+        const { engine, tick } = calibrated();
+        tick(1_000);
+        engine.onSpeed(kmh);
+        for (let t = 10_050; t <= 11_150; t += 50) engine.accept(eyesClosed(t));
+        return engine.getState().level;
+      };
+      expect(levelAfterClosure(50)).not.toBe('critical');
+      expect(levelAfterClosure(100)).toBe('critical');
+    });
+
+    describe('завсарлага', () => {
+      const MINUTE = 60_000;
+      const driving = () => {
+        const context = calibrated();
+        const drive = (ms: number, kmh: number | null) => {
+          for (let elapsed = 0; elapsed < ms; elapsed += 1_000) {
+            context.tick(1_000);
+            context.engine.onSpeed(kmh);
+          }
+        };
+        return { ...context, drive };
+      };
+
+      it('2 цаг тасралтгүй явсны дараа сануулж, 30 минут тутам давтаж, 15 минут зогсоход цуцална', () => {
+        const { engine, drive } = driving();
+        drive(120 * MINUTE - 5_000, 60);
+        expect(engine.getState()).toMatchObject({ breakDue: false, breakReminders: 0 });
+        drive(10_000, 60);
+        expect(engine.getState()).toMatchObject({ breakDue: true, breakReminders: 1 });
+        drive(30 * MINUTE, 60);
+        expect(engine.getState().breakReminders).toBe(2);
+        drive(15 * MINUTE + 2_000, 0);
+        expect(engine.getState().breakDue).toBe(false);
+        // Амарсны дараа дахин 2 цаг хүртэл сануулахгүй.
+        drive(119 * MINUTE, 60);
+        expect(engine.getState()).toMatchObject({ breakDue: false, breakReminders: 2 });
+      });
+
+      it('богино зогсолт амралтад тооцогдохгүй', () => {
+        const { engine, drive } = driving();
+        drive(60 * MINUTE, 60);
+        drive(10 * MINUTE, 0);
+        drive(55 * MINUTE, 60);
+        expect(engine.getState()).toMatchObject({ breakDue: true, breakReminders: 1 });
+      });
+
+      it('зогссоны дараа апп ард гарч GPS тасарсан ч амралтыг тоолно', () => {
+        const { engine, tick, drive } = driving();
+        drive(125 * MINUTE, 60);
+        drive(2_000, 0);
+        expect(engine.getState().breakDue).toBe(true);
+        tick(20 * MINUTE);
+        engine.onSpeed(null);
+        expect(engine.getState()).toMatchObject({ breakDue: false, stationary: false });
+      });
+
+      it('явж байхад GPS тасрахыг амралт гэж үзэхгүй', () => {
+        const { engine, drive } = driving();
+        drive(110 * MINUTE, 60);
+        drive(20 * MINUTE, null);
+        expect(engine.getState().breakDue).toBe(true);
+      });
+
+      it('GPS байхгүй ч хяналтын хугацаагаар сануулна', () => {
+        const { engine, tick } = calibrated();
+        tick(120 * MINUTE);
+        engine.accept(observation(true, 10_050));
+        expect(engine.getState()).toMatchObject({ breakDue: true, breakReminders: 1 });
+      });
+
+      it('апп удаан ард байсны дараа алгассан сануулгуудыг нэг удаа л гаргана', () => {
+        const { engine, tick, drive } = driving();
+        drive(60 * MINUTE, 60);
+        tick(180 * MINUTE);
+        drive(5_000, 60);
+        expect(engine.getState().breakReminders).toBe(1);
+      });
+    });
+
+    it('зай, хурд, нүд аньсан үеийн зай болон явдлын хурдыг гаргана', () => {
+      const { engine, tick } = calibrated();
+      // 36 км/ц = 10 м/с-ээр 60 секунд.
+      for (let i = 0; i <= 60; i++) {
+        tick(1_000);
+        engine.onSpeed(36);
+      }
+      for (let t = 10_050; t <= 11_650; t += 50) engine.accept(eyesClosed(t));
+
+      const critical = engine.getEvents().find((event) => event.type === 'fatigue_critical');
+      expect(critical?.speedKmh).toBe(36);
+      const summary = engine.finish();
+      expect(summary).toMatchObject({ distanceKm: 0.6, avgSpeedKmh: 36, maxSpeedKmh: 36 });
+      expect(summary.maxBlindDistanceM).toBeGreaterThanOrEqual(15);
+      expect(summary.maxBlindDistanceM).toBeLessThanOrEqual(16);
+    });
+
+    it('хурд хэмжээгүй аялалд хурд, зайг null, 0 гэж гаргана', () => {
+      const { engine } = calibrated();
+      expect(engine.finish()).toMatchObject({ distanceKm: 0, avgSpeedKmh: null, maxSpeedKmh: null, maxBlindDistanceM: 0 });
+    });
+  });
 });
