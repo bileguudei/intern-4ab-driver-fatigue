@@ -5,11 +5,17 @@ import {
   getComputerVisionCameraPermissionStatus, requestComputerVisionCameraPermission,
   type CameraPermissionStatus, type ComputerVisionObservation, type FaceQuality,
 } from '@/features/computer-vision';
+import { useAndroidBack } from '@/hooks/use-android-back';
+import { PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
 
 const REQUIRED_STABLE_MS = 1_500;
 
-export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; onContinue: () => void }) {
+/**
+ * `autoContinue` false үед нүүр тогтвортой болсон ч автоматаар урагшлахгүй.
+ * Калибрациас буцаж ирсэн хэрэглэгч дахин калибраци руу шидэгдэхгүйн тулд.
+ */
+export function CameraSetupScreen({ onBack, onContinue, autoContinue = true }: { onBack: () => void; onContinue: () => void; autoContinue?: boolean }) {
   const [permission, setPermission] = useState<CameraPermissionStatus | null>(null);
   const [quality, setQuality] = useState<FaceQuality>({ ready: false, issue: 'no-face' });
   const [stableMs, setStableMs] = useState(0);
@@ -39,11 +45,13 @@ export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; 
   const canContinue = quality.ready && stableMs >= REQUIRED_STABLE_MS;
   const message = cameraError ?? (canContinue ? 'Нүүр зөв байрлалаа' : quality.issue ? faceQualityMessage[quality.issue] : 'Тогтвортой байна уу');
 
+  useAndroidBack(onBack);
+
   useEffect(() => {
-    if (!canContinue || continuedRef.current) return;
+    if (!autoContinue || !canContinue || continuedRef.current) return;
     continuedRef.current = true;
     onContinue();
-  }, [canContinue, onContinue]);
+  }, [autoContinue, canContinue, onContinue]);
 
   return (
     <View style={styles.screen}>
@@ -73,6 +81,7 @@ export function CameraSetupScreen({ onBack, onContinue }: { onBack: () => void; 
           <Check label="Төв" good={!['no-face', 'too-far', 'too-close', 'off-center'].includes(quality.issue ?? '')} />
           <Check label="Харц" good={quality.ready} />
         </View>
+        {autoContinue ? null : <PrimaryButton label={canContinue ? 'Үргэлжлүүлэх →' : 'Нүүрээ хүрээнд тогтвортой барина уу'} onPress={onContinue} disabled={!canContinue} />}
       </View>
     </View>
   );

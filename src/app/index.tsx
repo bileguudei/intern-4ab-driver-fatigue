@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AppState, StatusBar, StyleSheet, View } from "react-native";
+import { AppState, BackHandler, StatusBar, StyleSheet, View } from "react-native";
 import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createFatigueEngine } from "@/features/fatigue/engine";
@@ -34,6 +34,9 @@ const emptySummary: SessionSummary = {
 export default function GuardApp() {
   const [route, setRoute] = useState<Route>({ kind: "tabs", tab: "home" });
   const [summary, setSummary] = useState<SessionSummary>(emptySummary);
+  // Калибрациас буцаж ирэхэд камерын дэлгэц дахин автоматаар урагшилбал
+  // хэрэглэгч гарч чадахгүй давталтад ордог.
+  const [cameraAutoContinue, setCameraAutoContinue] = useState(true);
   const activeSessionClientId = useRef<string | null>(null);
   const engine = useMemo(() => createFatigueEngine(), []);
 
@@ -63,6 +66,31 @@ export default function GuardApp() {
       appStateSubscription.remove();
     };
   }, []);
+
+  // Android-ийн back: табуудаас нүүр рүү, хураангуй болон зөвлөгөөнөөс өмнөх
+  // алхам руу. Камер, калибраци, жолоодлогын дэлгэцүүд back-аа өөрсдөө барина.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (route.kind === "tabs") {
+          if (route.tab === "home") return false;
+          setRoute({ kind: "tabs", tab: "home" });
+          return true;
+        }
+        if (route.screen === "summary") {
+          setRoute({ kind: "tabs", tab: "home" });
+          return true;
+        }
+        if (route.screen === "advice") {
+          setRoute({ kind: "flow", screen: "summary" });
+          return true;
+        }
+        return false;
+      },
+    );
+    return () => subscription.remove();
+  }, [route]);
 
   const keepAwake =
     route.kind === "flow" &&
@@ -116,7 +144,12 @@ export default function GuardApp() {
   if (route.kind === "tabs") {
     screen =
       route.tab === "home" ? (
-        <HomeScreen onStart={() => showFlow("camera")} />
+        <HomeScreen
+          onStart={() => {
+            setCameraAutoContinue(true);
+            showFlow("camera");
+          }}
+        />
       ) : route.tab === "history" ? (
         <HistoryScreen />
       ) : (
@@ -125,6 +158,7 @@ export default function GuardApp() {
   } else if (route.screen === "camera") {
     screen = (
       <CameraSetupScreen
+        autoContinue={cameraAutoContinue}
         onBack={() => showTab("home")}
         onContinue={() => showFlow("calibration")}
       />
@@ -133,7 +167,10 @@ export default function GuardApp() {
     screen = (
       <CalibrationScreen
         engine={engine}
-        onBack={() => showFlow("camera")}
+        onBack={() => {
+          setCameraAutoContinue(false);
+          showFlow("camera");
+        }}
         onComplete={handleCalibrationComplete}
       />
     );
