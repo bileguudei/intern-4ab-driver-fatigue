@@ -32,6 +32,11 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
 
   useEffect(() => { const timer = setInterval(() => setSeconds((value) => value + 1), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => { getComputerVisionCameraPermissionStatus().then(setPermission); }, []);
+  // Хаасан баннер зөвхөн тухайн удаагийн сэрэмжлүүлэгт хамаарна. Төлөв хэвийн
+  // болмогц тэглэж, дараагийн удаагийн сэрэмжлүүлгийг дахин харуулна.
+  useEffect(() => engine.subscribe((state) => {
+    if (state.level === 'normal') setDismissedLevel(null);
+  }), [engine]);
 
   const handleObservation = useCallback((next: ComputerVisionObservation) => {
     setObservation(next);
