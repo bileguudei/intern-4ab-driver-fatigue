@@ -9,6 +9,8 @@ export type LocalSession = {
     status: 'active' | 'completed';
     revision: number;
     synced_at: string | null;
+    /** Дундаж оноо. Энэ багана нэмэгдэхээс өмнөх сессүүдэд null. */
+    avg_score: number | null;
 };
 
 export type LocalFatigueEvent = {
@@ -24,8 +26,9 @@ export type LocalFatigueEvent = {
 
 export function getLocalDatabase(): Promise<unknown>;
 export function createLocalSession(driverId?: number): Promise<{ clientId: string; driverId: number; startedAt: string }>;
-export function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; warningCount: number; criticalEventCount: number }): Promise<void>;
+export function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number }): Promise<void>;
 export function addLocalFatigueEvent(event: Omit<LocalFatigueEvent, 'synced_at'>): Promise<void>;
 export function getLocalSessions(): Promise<LocalSession[]>;
+export function finalizeAbandonedSessions(): Promise<void>;
 export function getPendingSyncOperations(driverId?: number): Promise<{ sessions: LocalSession[]; events: LocalFatigueEvent[] }>;
 export function markSynced(clientIds: { sessions: string[]; events: string[] }): Promise<void>;

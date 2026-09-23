@@ -11,6 +11,8 @@ export type LocalSession = {
     status: 'active' | 'completed';
     revision: number;
     synced_at: string | null;
+    /** Дундаж оноо. Энэ багана нэмэгдэхээс өмнөх сессүүдэд null. */
+    avg_score: number | null;
 };
 
 export type LocalFatigueEvent = {
@@ -70,7 +72,23 @@ async function openDatabase() {
     );
     INSERT OR IGNORE INTO drivers (id, name, employee_id) VALUES (1, 'Local driver', 'local-driver-1');
   `);
+    await migrate(database);
     return database;
+}
+
+/**
+ * Суулгасан апп-ын өгөгдлийн санг `PRAGMA user_version`-оор нэг удаа шинэчилнэ.
+ * 1: `avg_score` багана нэмнэ. Сервер өмнө нь ядаргааны явдлыг хадгалалгүй
+ *    амжилттай гэж буцаадаг байсан тул бүх явдлыг дахин илгээхээр тэмдэглэнэ.
+ */
+async function migrate(database: SQLite.SQLiteDatabase) {
+    const version = (await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version ?? 0;
+    if (version >= 1) return;
+    const columns = await database.getAllAsync<{ name: string }>('PRAGMA table_info(driving_sessions)');
+    if (!columns.some((column) => column.name === 'avg_score')) {
+        await database.execAsync('ALTER TABLE driving_sessions ADD COLUMN avg_score REAL');
+    }
+    await database.execAsync('UPDATE fatigue_events SET synced_at = NULL; PRAGMA user_version = 1;');
 }
 
 export function getLocalDatabase() {
@@ -93,16 +111,17 @@ export async function createLocalSession(driverId = 1) {
     return { clientId, driverId, startedAt };
 }
 
-export async function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; warningCount: number; criticalEventCount: number }) {
+export async function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number }) {
     const database = await getLocalDatabase();
     await database.runAsync(
         `UPDATE driving_sessions
-     SET ended_at = ?, fatigue_score = ?, warning_count = ?, critical_event_count = ?,
+     SET ended_at = ?, fatigue_score = ?, avg_score = ?, warning_count = ?, critical_event_count = ?,
          status = 'completed', revision = revision + 1, synced_at = NULL,
          updated_at = CURRENT_TIMESTAMP
      WHERE client_id = ?`,
         summary.endedAt,
         summary.fatigueScore,
+        summary.avgScore,
         summary.warningCount,
         summary.criticalEventCount,
         clientId,
@@ -127,13 +146,33 @@ export async function addLocalFatigueEvent(event: Omit<LocalFatigueEvent, 'synce
 
 export async function getLocalSessions() {
     const database = await getLocalDatabase();
-    return database.getAllAsync<LocalSession>('SELECT client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at FROM driving_sessions ORDER BY started_at DESC');
+    return database.getAllAsync<LocalSession>('SELECT client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at, avg_score FROM driving_sessions ORDER BY started_at DESC');
+}
+
+/**
+ * Апп жолоодлогын дундуур унах, хаагдахад сесс 'active' хэвээр үлдэж хэзээ ч
+ * sync хийгддэггүй байсан. Апп эхлэхэд идэвхтэй жолоодлого байхгүй тул ийм
+ * сессийг хадгалагдсан явдлуудаар нь дуусгана.
+ */
+export async function finalizeAbandonedSessions() {
+    const database = await getLocalDatabase();
+    await database.runAsync(`
+      UPDATE driving_sessions
+      SET status = 'completed',
+          ended_at = COALESCE((SELECT MAX(event_at) FROM fatigue_events WHERE session_client_id = driving_sessions.client_id), started_at),
+          warning_count = (SELECT COUNT(*) FROM fatigue_events WHERE session_client_id = driving_sessions.client_id AND level = 'warning'),
+          critical_event_count = (SELECT COUNT(*) FROM fatigue_events WHERE session_client_id = driving_sessions.client_id AND level = 'critical'),
+          revision = revision + 1, synced_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE status = 'active'`);
 }
 
 export async function getPendingSyncOperations(driverId = 1) {
     const database = await getLocalDatabase();
-    const sessions = await database.getAllAsync<LocalSession>("SELECT client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at FROM driving_sessions WHERE synced_at IS NULL AND status = 'completed' ORDER BY started_at ASC");
-    const events = await database.getAllAsync<LocalFatigueEvent>('SELECT client_id, session_client_id, driver_id, level, fatigue_score, event_at, metadata_json, synced_at FROM fatigue_events WHERE synced_at IS NULL ORDER BY event_at ASC');
+    const sessions = await database.getAllAsync<LocalSession>("SELECT client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at, avg_score FROM driving_sessions WHERE synced_at IS NULL AND status = 'completed' ORDER BY started_at ASC");
+    // Сервер явдлыг сессээр нь холбодог тул зөвхөн дууссан сессийн явдлыг илгээнэ.
+    const events = await database.getAllAsync<LocalFatigueEvent>(`SELECT e.client_id, e.session_client_id, e.driver_id, e.level, e.fatigue_score, e.event_at, e.metadata_json, e.synced_at
+     FROM fatigue_events e JOIN driving_sessions s ON s.client_id = e.session_client_id
+     WHERE e.synced_at IS NULL AND s.status = 'completed' ORDER BY e.event_at ASC`);
     return { sessions: sessions.filter((session) => session.driver_id === driverId), events: events.filter((event) => event.driver_id === driverId) };
 }
 
