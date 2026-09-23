@@ -10,6 +10,7 @@ import {
 } from '@/features/computer-vision';
 import type { FatigueEngine } from '@/features/fatigue/engine';
 import { useFatigueState } from '@/features/fatigue/use-fatigue-state';
+import { useDrivingSpeed } from '@/features/speed/use-driving-speed';
 import { useAndroidBack } from '@/hooks/use-android-back';
 import { Card, PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
@@ -23,6 +24,7 @@ const stateCopy: Record<FatigueState, { label: string; color: string; message: s
 
 export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onFinish: (summary: SessionSummary) => void }) {
   const live = useFatigueState(engine);
+  const speedKmh = useDrivingSpeed();
   const [seconds, setSeconds] = useState(0);
   const [permission, setPermission] = useState<CameraPermissionStatus | null>(null);
   const [observation, setObservation] = useState<ComputerVisionObservation | null>(null);
@@ -62,6 +64,7 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
 
       <View style={styles.topHud}>
         <View><Text style={styles.microLabel}>ЖОЛООДЛОГЫН ХУГАЦАА</Text><Text style={styles.time}>{formatted}</Text></View>
+        <View style={styles.speedBlock}><Text style={styles.microLabel}>ХУРД</Text><Text style={styles.time}>{speedKmh ?? '—'}<Text style={styles.speedUnit}> км/ц</Text></Text></View>
         <View style={styles.statusStack}>
           <Text style={[styles.cameraState, { color: live.cameraStatus === 'running' ? colors.normal : colors.warning }]}>{live.cameraStatus === 'running' ? '● КАМЕР ИДЭВХТЭЙ' : '● КАМЕР АСАЖ БАЙНА'}</Text>
           <View style={[styles.levelPill, { borderColor: current.color }]}><Text style={[styles.levelText, { color: current.color }]}>{current.label}</Text></View>
@@ -110,6 +113,7 @@ const styles = StyleSheet.create({
   cameraShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#00000024' },
   topHud: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', margin: 14, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 18, backgroundColor: '#07111CE8', borderWidth: 1, borderColor: '#FFFFFF20' },
   microLabel: { color: '#FFFFFF8F', fontSize: 9, fontWeight: '800', letterSpacing: 1 }, time: { color: colors.white, fontSize: 25, fontWeight: '900', fontVariant: ['tabular-nums'], marginTop: 2 },
+  speedBlock: { alignItems: 'center' }, speedUnit: { color: '#FFFFFF8F', fontSize: 11, fontWeight: '800' },
   statusStack: { alignItems: 'flex-end', gap: 6 }, cameraState: { fontSize: 10, fontWeight: '800' }, levelPill: { borderWidth: 1, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: '#00000050' }, levelText: { fontSize: 11, fontWeight: '900' },
   alert: { marginHorizontal: 14, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, alertText: { fontSize: 13, fontWeight: '900' }, close: { color: colors.white, fontSize: 22 },
   guideArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 12 },
