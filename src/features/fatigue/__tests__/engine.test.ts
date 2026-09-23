@@ -362,4 +362,56 @@ describe('createFatigueEngine', () => {
     }
     expect(engine.getState().level).toBe('critical');
   });
+
+  it('critical-аас warning руу буурахыг шинэ анхааруулга гэж тоолохгүй', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    const closed = (t: number) => ({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8 });
+    let t = 10_050;
+    // Олон богино анилтаас PERCLOS өндөр болж warning гарна.
+    for (let cycle = 0; cycle < 15; cycle++) {
+      for (const end = t + 800; t < end; t += 50) engine.accept(closed(t));
+      for (const end = t + 1_200; t < end; t += 50) engine.accept(observation(true, t));
+    }
+    expect(engine.getState().level).toBe('warning');
+    // Урт анилтаар critical болж, нүд нээгдэхэд warning руу буурна.
+    for (const end = t + 1_700; t < end; t += 50) engine.accept(closed(t));
+    expect(engine.getState().level).toBe('critical');
+    for (const end = t + 600; t < end; t += 50) engine.accept(observation(true, t));
+    expect(engine.getState().level).toBe('warning');
+
+    expect(engine.getEvents().map((event) => event.type)).toEqual(['fatigue_warning', 'fatigue_critical']);
+    expect(engine.finish()).toMatchObject({ warningCount: 1, criticalCount: 1 });
+  });
+
+  it('аяллын дүнд PERCLOS, урт анилт, толгой дохилтын тоог гаргана', () => {
+    const { engine } = setup();
+    engine.onCameraStatus('running');
+    engine.startCalibration();
+    for (let t = 0; t <= 10_000; t += 50) engine.accept(observation(true, t));
+
+    let t = 10_050;
+    for (const end = t + 2_000; t < end; t += 50) engine.accept(observation(true, t));
+    // 2 секунд аньсан нэг урт анилт.
+    for (const end = t + 2_000; t < end; t += 50) engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8 });
+    for (const end = t + 2_000; t < end; t += 50) engine.accept(observation(true, t));
+    // Унжаад гэнэт өндийх нэг дохилт: 750 мс-т +30°, 400 мс-т буцна.
+    const nodStart = t;
+    for (; t < nodStart + 750; t += 50) {
+      engine.accept({ ...observation(true, t), headPose: { pitch: 3 + (30 * (t - nodStart)) / 750, yaw: 0, roll: 0 } });
+    }
+    const peakAt = t;
+    for (; t < peakAt + 400; t += 50) {
+      engine.accept({ ...observation(true, t), headPose: { pitch: 33 - (30 * (t - peakAt)) / 400, yaw: 0, roll: 0 } });
+    }
+    for (const end = t + 2_000; t < end; t += 50) engine.accept(observation(true, t));
+
+    const summary = engine.finish();
+    expect(summary.longClosureCount).toBe(1);
+    expect(summary.quickNodCount).toBe(1);
+    expect(summary.perclos).toBeGreaterThan(0);
+  });
 });

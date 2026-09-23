@@ -8,6 +8,7 @@ import {
 } from "@/features/fatigue/engine";
 import { FatigueAlarm } from "@/features/fatigue/fatigue-alarm";
 import { KeepScreenAwake } from "@/features/fatigue/keep-screen-awake";
+import { cancelLeftoverStoppedReminders } from "@/features/fatigue/stopped-reminders";
 import { BottomNav } from "@/fatigueguard/components/BottomNav";
 import { AdviceScreen } from "@/fatigueguard/screens/AdviceScreen";
 import { CalibrationScreen } from "@/fatigueguard/screens/CalibrationScreen";
@@ -85,6 +86,11 @@ export default function GuardApp() {
   );
 
   useEffect(() => {
+    // Апп жолоодлогын дундуур хаагдсан бол «хяналт зогслоо» сануулга үлдсэн байж
+    // болно. Одоо жолоодлого явагдаагүй тул цуцална.
+    void cancelLeftoverStoppedReminders().catch((error) =>
+      console.warn("Unable to clear monitoring reminders:", error),
+    );
     // Өмнө нь дуусаагүй үлдсэн сессийг эхлээд хааж, дараа нь sync хийнэ.
     void finalizeAbandonedSessions()
       .catch((error) =>

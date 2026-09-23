@@ -5,10 +5,26 @@ import { type BaselineTracker, createBaselineTracker } from './baseline-tracker'
 import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
 import { createEyeTracker } from './eyes';
 import { createHeadTracker } from './head';
-import { computeScore, type FatigueLevel, nextLevel } from './score';
+import { computeScore, CRITICAL_CLOSURE_MS, type FatigueLevel, nextLevel } from './score';
 import { createYawnTracker } from './yawn';
 
 export type { FatigueLevel };
+
+/** Түвшин өсөх үед л явдал бүртгэхийн тулд эрэмбэлнэ. */
+const LEVEL_RANK: Record<FatigueLevel, number> = { normal: 0, warning: 1, critical: 2 };
+
+/** Аяллын дүн болон AI зөвлөгөөнд хэрэглэх хэмжүүрүүд. */
+const createSession = (startedAt: number) => ({
+  startedAt,
+  scoreSum: 0,
+  scoreCount: 0,
+  maxScore: 0,
+  perclosSum: 0,
+  longClosures: 0,
+  inLongClosure: false,
+  quickNods: 0,
+  lastQuickNods: 0,
+});
 
 /** Толгой ийм их бөхийсөн үед eyeBlink-ийг EAR-аар давхар батална. */
 const HEAD_DOWN_EAR_CONFIRM_DEG = 15;
@@ -60,7 +76,7 @@ export function createFatigueEngine({
   let eyes = createEyeTracker();
   let head = createHeadTracker();
   let yawn = createYawnTracker();
-  let session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
+  let session = createSession(now());
   /** Калибрацийн дараа нүүр тасралтгүй алга болсон эхний фрэймийн цаг. */
   let faceMissingSince: number | null = null;
 
@@ -96,8 +112,23 @@ export function createFatigueEngine({
     const eyeState = ignoreEyes ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const score = computeScore(eyeState, headState, yawnState);
     const level = nextLevel(state.level, score, eyeState, headState, yawnState, faceMissingMs);
-    session = { ...session, scoreSum: session.scoreSum + score, scoreCount: session.scoreCount + 1, maxScore: Math.max(session.maxScore, score) };
-    const escalated = level !== state.level && level !== 'normal';
+    const longClosure = eyeState.closureMs >= CRITICAL_CLOSURE_MS;
+    session = {
+      ...session,
+      scoreSum: session.scoreSum + score,
+      scoreCount: session.scoreCount + 1,
+      maxScore: Math.max(session.maxScore, score),
+      perclosSum: session.perclosSum + eyeState.perclos,
+      // Нэг удаагийн урт анилтыг нүд нээгдэх хүртэл нэг л удаа тоолно.
+      longClosures: session.longClosures + (longClosure && !session.inLongClosure ? 1 : 0),
+      inLongClosure: longClosure || (session.inLongClosure && eyeState.closureMs > 0),
+      // headState.quickNods нь сүүлийн 60 сек-ийн тоо тул зөвхөн өсөлтийг нэмнэ.
+      quickNods: session.quickNods + Math.max(0, headState.quickNods - session.lastQuickNods),
+      lastQuickNods: headState.quickNods,
+    };
+    // Critical-аас warning руу буурах нь шинэ анхааруулга биш. Өмнө нь үүнийг
+    // fatigue_warning гэж бүртгэдэг байсан тул анхааруулгын тоо хөөрөгддөг байв.
+    const escalated = LEVEL_RANK[level] > LEVEL_RANK[state.level];
     if (escalated) record(level === 'critical' ? 'fatigue_critical' : 'fatigue_warning');
     update({ score, level });
     return level;
@@ -156,7 +187,7 @@ export function createFatigueEngine({
       eyes = createEyeTracker();
       head = createHeadTracker();
       yawn = createYawnTracker();
-      session = { startedAt: now(), scoreSum: 0, scoreCount: 0, maxScore: 0 };
+      session = createSession(now());
       update({ calibration: 'running', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null, level: 'normal', score: 0 });
     },
 
@@ -174,6 +205,12 @@ export function createFatigueEngine({
         avgScore: session.scoreCount > 0 ? Math.round(session.scoreSum / session.scoreCount) : 0,
         /** Апп ард гарч камер зогссон нийт хугацаа. */
         unmonitoredSeconds: Math.round(unmonitoredMs / 1000),
+        /** Аяллын дундаж PERCLOS (0…1). Үнэлгээ хийгдээгүй бол null. */
+        perclos: session.scoreCount > 0 ? Math.round((session.perclosSum / session.scoreCount) * 100) / 100 : null,
+        /** 1.5 сек-ээс удаан аньсан удаа. */
+        longClosureCount: session.longClosures,
+        /** Жижиг, хурдан толгой дохилтын тоо. */
+        quickNodCount: session.quickNods,
       };
     },
 

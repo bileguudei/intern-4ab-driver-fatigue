@@ -6,11 +6,9 @@ import { Vibration } from 'react-native';
 import { createAlarmController } from './alarm';
 import { createBackgroundAlert } from './background-alert';
 import type { FatigueEngine } from './engine';
+import { createStoppedReminders, notifyMonitoringStopped } from './stopped-reminders';
 
 const CRITICAL_VIBRATION = [0, 500, 300];
-/** iOS давтах мэдэгдэлд доод тал нь 60 сек шаарддаг. */
-const REMINDER_SECONDS = 120;
-const STOPPED_NOTICE = { title: '⚠ Ядаргааны хяналт зогслоо', body: 'Апп руу буцаж орвол хяналт үргэлжилнэ', sound: true };
 
 /**
  * Жолоодлогын үед түвшин өсөхөд дуу, чичиргээ өгнө. Утас машинтай Bluetooth
@@ -50,22 +48,20 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
         Vibration.cancel();
       },
     });
-    let reminderId: string | null = null;
+    const reminders = createStoppedReminders((error) => console.warn('Unable to update monitoring reminder:', error));
     // Анхны жолоодлого эхлэхэд мэдэгдлийн зөвшөөрөл асууна; татгалзвал зөвхөн дуу үлдэнэ.
     Notifications.requestPermissionsAsync();
     const onBackground = createBackgroundAlert({
       alertNow: () => {
         warning.seekTo(0);
         warning.play();
-        Notifications.scheduleNotificationAsync({ content: STOPPED_NOTICE, trigger: null });
+        void notifyMonitoringStopped();
       },
-      scheduleReminders: async () => {
-        const trigger = { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: REMINDER_SECONDS, repeats: true } as const;
-        reminderId = await Notifications.scheduleNotificationAsync({ content: STOPPED_NOTICE, trigger });
+      scheduleReminders: () => {
+        void reminders.schedule();
       },
       cancelReminders: () => {
-        if (reminderId !== null) Notifications.cancelScheduledNotificationAsync(reminderId);
-        reminderId = null;
+        void reminders.cancel();
       },
     });
     const unsubscribe = engine.subscribe((state) => {
@@ -75,7 +71,7 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
 
     return () => {
       unsubscribe();
-      if (reminderId !== null) Notifications.cancelScheduledNotificationAsync(reminderId);
+      void reminders.cancel();
       criticalOn = false;
       keepPlaying.remove();
       Vibration.cancel();
