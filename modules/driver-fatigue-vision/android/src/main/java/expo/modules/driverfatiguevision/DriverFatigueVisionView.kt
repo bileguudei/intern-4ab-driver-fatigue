@@ -15,6 +15,8 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
@@ -61,6 +63,18 @@ class DriverFatigueVisionView(
   @Volatile
   private var faceLandmarker: FaceLandmarker? = null
   private var analysisExecutor: ExecutorService? = null
+  private var observedLifecycle: Lifecycle? = null
+
+  // Апп ард гарахад CameraX камерыг lifecycle-ээр өөрөө зогсоодог ч статус
+  // илгээдэггүй. iOS-той адил JS-д мэдэгдэж, хяналт зогссоныг анхааруулна.
+  private val lifecycleObserver = LifecycleEventObserver { _, event ->
+    val cameraBound = cameraProvider != null
+    if (cameraBound && event == Lifecycle.Event.ON_STOP) {
+      emitStatus("stopped")
+    } else if (cameraBound && active && event == Lifecycle.Event.ON_START) {
+      emitStatus("running")
+    }
+  }
 
   init {
     addView(previewView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -146,6 +160,9 @@ class DriverFatigueVisionView(
             preview,
             analysis,
           )
+          // cameraProvider онооход өмнө бүртгэнэ: addObserver-ийн нөхөж ирдэг
+          // ON_START үйл явдал давхар "running" илгээхгүй.
+          observeLifecycle(lifecycleOwner.lifecycle)
           cameraProvider = provider
           emitStatus("running")
         } catch (error: Exception) {
@@ -157,7 +174,16 @@ class DriverFatigueVisionView(
     )
   }
 
+  private fun observeLifecycle(lifecycle: Lifecycle) {
+    if (observedLifecycle === lifecycle) return
+    observedLifecycle?.removeObserver(lifecycleObserver)
+    lifecycle.addObserver(lifecycleObserver)
+    observedLifecycle = lifecycle
+  }
+
   private fun stopCamera() {
+    observedLifecycle?.removeObserver(lifecycleObserver)
+    observedLifecycle = null
     cameraProvider?.unbindAll()
     cameraProvider = null
     lastSubmittedTimestampMs = 0L

@@ -11,8 +11,12 @@ import DriverFatigueVision, {
   type VisionStatus,
 } from '../../../modules/driver-fatigue-vision';
 
+import { createFrameWatchdog } from './frame-watchdog';
 import { toComputerVisionObservation } from './native-result-to-observation';
 import type { ComputerVisionObservation } from './types';
+
+/** Фрэйм зогссон эсэхийг шалгах давтамж. */
+const WATCHDOG_INTERVAL_MS = 500;
 
 export type ComputerVisionCameraProps = Omit<
   DriverFatigueVisionViewProps,
@@ -87,11 +91,23 @@ export function ComputerVisionCamera({
   onStatusChange,
   ...viewProps
 }: ComputerVisionCameraProps) {
+  const [watchdog] = React.useState(() => createFrameWatchdog());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      const stalled = watchdog.check(Date.now());
+      if (stalled) onStatusChange?.(stalled);
+    }, WATCHDOG_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [onStatusChange, watchdog]);
+
   const handleFrameResult = React.useCallback(
     ({ nativeEvent }: { nativeEvent: NativeFrameResult }) => {
+      const resumed = watchdog.frame(Date.now());
+      if (resumed) onStatusChange?.(resumed);
       onObservation(toComputerVisionObservation(nativeEvent));
     },
-    [onObservation],
+    [onObservation, onStatusChange, watchdog],
   );
 
   const handleError = React.useCallback(
@@ -100,9 +116,11 @@ export function ComputerVisionCamera({
   );
 
   const handleStatusChange = React.useCallback(
-    ({ nativeEvent }: { nativeEvent: { status: VisionStatus } }) =>
-      onStatusChange?.(nativeEvent.status),
-    [onStatusChange],
+    ({ nativeEvent }: { nativeEvent: { status: VisionStatus } }) => {
+      watchdog.status(nativeEvent.status, Date.now());
+      onStatusChange?.(nativeEvent.status);
+    },
+    [onStatusChange, watchdog],
   );
 
   return (
