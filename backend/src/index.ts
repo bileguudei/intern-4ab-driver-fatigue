@@ -27,21 +27,12 @@ interface VectorizeBinding {
   ): Promise<unknown>;
 }
 
-interface AiBinding {
-  run(
-    model: string,
-    input:
-      | { text: string[] }
-      | { messages: Array<{ role: string; content: string }> },
-  ): Promise<unknown>;
-}
-
 export interface Env {
   DB: D1Database;
   MEDIA?: R2Bucket;
   KNOWLEDGE?: R2Bucket;
   VECTORIZE?: VectorizeBinding;
-  AI?: AiBinding;
+  GEMINI_API_KEY?: string;
   INGEST_API_KEY?: string;
 }
 
@@ -55,10 +46,84 @@ const corsHeaders = {
   "access-control-allow-headers": "content-type, authorization, x-driver-id",
 };
 
-const VECTOR_EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5";
-const LLM_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
+const GEMINI_EMBEDDING_DIMENSIONS = 768;
+const GEMINI_LLM_MODEL = "gemini-flash-lite-latest";
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_EMBED_BATCH_SIZE = 100;
 const DEFAULT_RAG_TOP_K = 5;
 const DEFAULT_RAG_THRESHOLD = 0.45;
+
+async function embedTexts(env: Env, texts: string[]): Promise<number[][]> {
+  if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  if (texts.length === 0) return [];
+
+  const results: number[][] = [];
+  for (let start = 0; start < texts.length; start += GEMINI_EMBED_BATCH_SIZE) {
+    const batch = texts.slice(start, start + GEMINI_EMBED_BATCH_SIZE);
+    const res = await fetch(
+      `${GEMINI_API_BASE}/models/${GEMINI_EMBEDDING_MODEL}:batchEmbedContents?key=${env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          requests: batch.map((text) => ({
+            model: `models/${GEMINI_EMBEDDING_MODEL}`,
+            content: { parts: [{ text }] },
+            outputDimensionality: GEMINI_EMBEDDING_DIMENSIONS,
+          })),
+        }),
+      },
+    );
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini embedding request failed (${res.status}): ${errText}`);
+    }
+    const data = (await res.json()) as {
+      embeddings?: Array<{ values?: number[] }>;
+    };
+    const embeddings = data.embeddings ?? [];
+    if (embeddings.length !== batch.length)
+      throw new Error("Gemini embedding response did not match request count");
+    for (const item of embeddings) {
+      if (!item.values)
+        throw new Error("Gemini embedding response missing values");
+      results.push(item.values);
+    }
+  }
+  return results;
+}
+
+async function generateAdviceText(
+  env: Env,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<string | null> {
+  if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const res = await fetch(
+    `${GEMINI_API_BASE}/models/${GEMINI_LLM_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      }),
+    },
+  );
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Gemini generation request failed (${res.status}): ${errText}`);
+  }
+  const data = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const text = data.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? "")
+    .join("")
+    .trim();
+  return text && text.length > 0 ? text : null;
+}
 
 function response(
   body: unknown,
@@ -103,59 +168,6 @@ function numberOrNull(value: unknown) {
 function parseId(value: string | undefined) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-function extractModelText(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const value = payload as Record<string, unknown>;
-  if (typeof value.response === "string") return value.response.trim();
-  if (typeof value.result === "string") return value.result.trim();
-  if (Array.isArray(value.response)) {
-    const text = value.response
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : typeof item === "object" &&
-              item &&
-              "text" in item &&
-              typeof (item as { text?: unknown }).text === "string"
-            ? (item as { text: string }).text
-            : "",
-      )
-      .join(" ");
-    if (text.trim()) return text.trim();
-  }
-  if (Array.isArray(value.result)) {
-    const text = value.result
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : typeof item === "object" &&
-              item &&
-              "text" in item &&
-              typeof (item as { text?: unknown }).text === "string"
-            ? (item as { text: string }).text
-            : "",
-      )
-      .join(" ");
-    if (text.trim()) return text.trim();
-  }
-  if (Array.isArray(value.output)) {
-    const text = value.output
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : typeof item === "object" &&
-              item &&
-              "text" in item &&
-              typeof (item as { text?: unknown }).text === "string"
-            ? (item as { text: string }).text
-            : "",
-      )
-      .join(" ");
-    if (text.trim()) return text.trim();
-  }
-  return null;
 }
 
 async function createSession(request: Request, env: Env) {
@@ -401,14 +413,11 @@ async function ragSearch(request: Request, env: Env) {
   const threshold = Number.isFinite(rawThreshold)
     ? rawThreshold
     : DEFAULT_RAG_THRESHOLD;
-  if (!env.VECTORIZE || !env.AI) {
+  if (!env.VECTORIZE || !env.GEMINI_API_KEY) {
     return response({ query, source: "d1-fallback", matches: [] });
   }
-  const embedding = (await env.AI.run(VECTOR_EMBEDDING_MODEL, {
-    text: [query],
-  })) as { data?: number[][] };
-  const vector = embedding.data?.[0];
-  if (!vector) throw new Error("Workers AI did not return an embedding");
+  const [vector] = await embedTexts(env, [query]);
+  if (!vector) throw new Error("Gemini did not return an embedding");
   const matches = await env.VECTORIZE.query(vector, {
     topK,
     returnMetadata: true,
@@ -439,9 +448,9 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
       : null;
   const bucket = env.KNOWLEDGE;
   if (!bucket) throw new Error("KNOWLEDGE R2 bucket is not configured");
-  if (!env.AI || !env.VECTORIZE) {
+  if (!env.GEMINI_API_KEY || !env.VECTORIZE) {
     throw new Error(
-      "AI and VECTORIZE bindings are required for knowledge ingestion",
+      "GEMINI_API_KEY and VECTORIZE are required for knowledge ingestion",
     );
   }
   if (!documentText && !fileKey)
@@ -478,17 +487,16 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
     vector_id: string;
   }> = [];
 
+  const chunkEmbeddings = await embedTexts(env, chunks);
+
   for (let index = 0; index < chunks.length; index += 1) {
     const content = chunks[index];
     const chunkId = `${documentId}-${index}`;
     const vectorId = `chunk-${chunkId}`;
-    const embeddingResult = (await env.AI.run(VECTOR_EMBEDDING_MODEL, {
-      text: [content],
-    })) as { data?: number[][] };
-    const vector = embeddingResult.data?.[0];
+    const vector = chunkEmbeddings[index];
     if (!vector)
       throw new Error(
-        "Workers AI did not return an embedding for the document chunk",
+        "Gemini did not return an embedding for the document chunk",
       );
     vectors.push({
       id: vectorId,
@@ -540,20 +548,15 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
 
 async function buildAdviceResponse(data: NormalizedAdviceRequest, env: Env) {
   const query = buildAdviceQuery(data);
-  if (!env.AI || !env.VECTORIZE) {
+  if (!env.GEMINI_API_KEY || !env.VECTORIZE) {
     throw new Error(
-      "AI and VECTORIZE bindings are required for RAG advice generation",
+      "GEMINI_API_KEY and VECTORIZE are required for RAG advice generation",
     );
   }
 
-  const embedding = (await env.AI.run(VECTOR_EMBEDDING_MODEL, {
-    text: [query],
-  })) as { data?: number[][] };
-  const vector = embedding.data?.[0];
+  const [vector] = await embedTexts(env, [query]);
   if (!vector)
-    throw new Error(
-      "Workers AI did not return an embedding for the advice query",
-    );
+    throw new Error("Gemini did not return an embedding for the advice query");
 
   const matches = await env.VECTORIZE.query(vector, {
     topK: DEFAULT_RAG_TOP_K,
@@ -609,18 +612,12 @@ async function buildAdviceResponse(data: NormalizedAdviceRequest, env: Env) {
       : "No directly relevant safety guidance was retrieved from the knowledge base for this session.";
 
   const systemPrompt =
-    "You are a driver-safety assistant. Base your answer only on the retrieved guidance and the current session facts. Never claim to diagnose a medical condition or certainty about the driver's health. Keep the advice practical, concise, and suitable for a mobile app. Mention key risk indicators only as observed facts. When relevant, recommend a rest break or stopping point. Do not invent sources or guidelines.";
-  const userPrompt = `Session facts:\n- sessionId: ${data.sessionId ?? "unknown"}\n- fatigueScore: ${data.fatigueScore}\n- averageFatigueScore: ${data.averageFatigueScore ?? "n/a"}\n- maxFatigueScore: ${data.maxFatigueScore ?? "n/a"}\n- driveDurationMinutes: ${data.driveDurationMinutes ?? "n/a"}\n- prolongedEyeClosureCount: ${data.prolongedEyeClosureCount ?? "n/a"}\n- headNodCount: ${data.headNodCount ?? "n/a"}\n- perclos: ${data.perclos ?? "n/a"}\n\nRetrieved knowledge:\n${context}\n\nProvide brief safety guidance, explicitly separate observed fatigue indicators from recommendations, and keep the final answer under 200 words.`;
+    "You are a driver-safety assistant. Base your answer only on the retrieved guidance and the current session facts. Never claim to diagnose a medical condition or certainty about the driver's health. Keep the advice practical, concise, and suitable for a mobile app. Mention key risk indicators only as observed facts. When relevant, recommend a rest break or stopping point. Do not invent sources or guidelines. Always respond in Mongolian (Cyrillic script), regardless of the language of the retrieved knowledge or session facts.";
+  const userPrompt = `Session facts:\n- sessionId: ${data.sessionId ?? "unknown"}\n- fatigueScore: ${data.fatigueScore}\n- averageFatigueScore: ${data.averageFatigueScore ?? "n/a"}\n- maxFatigueScore: ${data.maxFatigueScore ?? "n/a"}\n- driveDurationMinutes: ${data.driveDurationMinutes ?? "n/a"}\n- prolongedEyeClosureCount: ${data.prolongedEyeClosureCount ?? "n/a"}\n- headNodCount: ${data.headNodCount ?? "n/a"}\n- perclos: ${data.perclos ?? "n/a"}\n\nRetrieved knowledge:\n${context}\n\nProvide brief safety guidance in Mongolian, explicitly separate observed fatigue indicators from recommendations, and keep the final answer under 200 words.`;
 
-  const modelResult = await env.AI.run(LLM_MODEL, {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  });
   const advice =
-    extractModelText(modelResult) ??
-    "No safety advice could be generated from the retrieved knowledge.";
+    (await generateAdviceText(env, systemPrompt, userPrompt)) ??
+    "Хадгалагдсан мэдлэгийн сангаас зөвлөгөө үүсгэж чадсангүй.";
   const logId = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO advice_logs (id, session_id, fatigue_score, query, retrieved_chunk_ids, advice)

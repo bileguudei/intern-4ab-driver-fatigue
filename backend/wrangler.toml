@@ -5,11 +5,9 @@ compatibility_date = "2026-09-17"
 [[d1_databases]]
 binding = "DB"
 database_name = "driver-fatigue-db"
-database_id = "d4fcdbb4-2c69-4ec1-afea-f95015ea22b1"
+database_id = "cb5407bc-f2ad-4d17-a3be-07f1777d8c69"
 migrations_dir = "migrations"
 
-# Configure these bindings in the Cloudflare dashboard or with your own IDs
-# before enabling the corresponding RAG/media features in production.
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "driver-fatigue-media"
@@ -23,6 +21,7 @@ binding = "VECTORIZE"
 index_name = "driver-fatigue-knowledge"
 remote = true
 
-[ai]
-binding = "AI"
-remote = true
+# GEMINI_API_KEY and INGEST_API_KEY are secrets, not vars — set them with:
+#   wrangler secret put GEMINI_API_KEY
+#   wrangler secret put INGEST_API_KEY
+# For local dev, put them in backend/.dev.vars (gitignored) instead.
