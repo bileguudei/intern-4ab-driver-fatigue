@@ -42,6 +42,7 @@ export interface Env {
   KNOWLEDGE?: R2Bucket;
   VECTORIZE?: VectorizeBinding;
   AI?: AiBinding;
+  INGEST_API_KEY?: string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -339,11 +340,15 @@ async function driverHistory(url: URL, env: Env, driverId: number) {
 async function ragSearch(request: Request, env: Env) {
   const body = await readJson(request);
   const query = requiredString(body, "query");
+  const rawTopK = Number(body.topK ?? body.limit ?? DEFAULT_RAG_TOP_K);
   const topK = Math.min(
-    Math.max(Number(body.topK ?? body.limit ?? DEFAULT_RAG_TOP_K), 1),
+    Math.max(Number.isFinite(rawTopK) ? rawTopK : DEFAULT_RAG_TOP_K, 1),
     20,
   );
-  const threshold = Number(body.threshold ?? DEFAULT_RAG_THRESHOLD);
+  const rawThreshold = Number(body.threshold ?? DEFAULT_RAG_THRESHOLD);
+  const threshold = Number.isFinite(rawThreshold)
+    ? rawThreshold
+    : DEFAULT_RAG_THRESHOLD;
   if (!env.VECTORIZE || !env.AI) {
     return response({ query, source: "d1-fallback", matches: [] });
   }
@@ -361,6 +366,15 @@ async function ragSearch(request: Request, env: Env) {
 }
 
 async function ingestKnowledgeDocument(request: Request, env: Env) {
+  if (!env.INGEST_API_KEY)
+    throw new Error("INGEST_API_KEY is not configured; refusing to ingest");
+  const authHeader = request.headers.get("authorization") ?? "";
+  const providedKey = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : "";
+  if (providedKey !== env.INGEST_API_KEY)
+    return errorResponse("Unauthorized", 401);
+
   const body = await readJson(request);
   const title = requiredString(body, "title");
   const category = requiredString(body, "category");
@@ -571,10 +585,19 @@ async function buildAdviceResponse(data: NormalizedAdviceRequest, env: Env) {
     .run();
 
   if (data.driverId !== null) {
+    let resolvedSessionId: number | null = null;
+    if (data.sessionId !== null) {
+      const session = await env.DB.prepare(
+        "SELECT id FROM driving_sessions WHERE client_id = ?",
+      )
+        .bind(data.sessionId)
+        .first<{ id: number }>();
+      resolvedSessionId = session?.id ?? null;
+    }
     await env.DB.prepare(
       `INSERT INTO ai_advice_history (driver_id, session_id, prompt, advice) VALUES (?, ?, ?, ?)`,
     )
-      .bind(data.driverId, null, query, advice)
+      .bind(data.driverId, resolvedSessionId, query, advice)
       .run();
   }
 
