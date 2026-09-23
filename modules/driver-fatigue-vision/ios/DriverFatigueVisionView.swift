@@ -54,6 +54,26 @@ final class DriverFatigueVisionView: ExpoView,
       name: UIApplication.willEnterForegroundNotification,
       object: nil
     )
+    // Утас халах, өөр апп камер авах, media services дахин ачаалагдах үед iOS
+    // сессийг тасалдуулна. Фрэйм зогсох тул JS-д мэдэгдэхгүй бол хяналт чимээгүй тасарна.
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(sessionWasInterrupted),
+      name: AVCaptureSession.wasInterruptedNotification,
+      object: captureSession
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(sessionInterruptionEnded),
+      name: AVCaptureSession.interruptionEndedNotification,
+      object: captureSession
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(sessionRuntimeError),
+      name: AVCaptureSession.runtimeErrorNotification,
+      object: captureSession
+    )
   }
 
   deinit {
@@ -333,6 +353,35 @@ final class DriverFatigueVisionView: ExpoView,
   @objc private func willEnterForeground() {
     if isActive {
       startCamera()
+    }
+  }
+
+  @objc private func sessionWasInterrupted(_ notification: Notification) {
+    emitStatus("stopped")
+  }
+
+  @objc private func sessionInterruptionEnded(_ notification: Notification) {
+    sessionQueue.async { [weak self] in
+      guard let self, self.isActive, self.captureSession.isRunning else { return }
+      self.emitStatus("running")
+    }
+  }
+
+  @objc private func sessionRuntimeError(_ notification: Notification) {
+    let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
+    emitError(
+      code: "camera_runtime_error",
+      message: error?.localizedDescription ?? "The camera session stopped unexpectedly."
+    )
+    emitStatus("stopped")
+    // Media services дахин ачаалагдсан бол сессийг дахин эхлүүлж болно.
+    guard error?.code == .mediaServicesWereReset else { return }
+    sessionQueue.async { [weak self] in
+      guard let self, self.isActive, !self.captureSession.isRunning else { return }
+      self.captureSession.startRunning()
+      if self.captureSession.isRunning {
+        self.emitStatus("running")
+      }
     }
   }
 
