@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ComputerVisionCamera, evaluateFaceQuality, faceQualityMessage, type ComputerVisionObservation } from '@/features/computer-vision';
 import type { FatigueEngine } from '@/features/fatigue/engine';
 import { useFatigueState } from '@/features/fatigue/use-fatigue-state';
+import { useAndroidBack } from '@/hooks/use-android-back';
 import { PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
 
@@ -18,12 +19,18 @@ export function CalibrationScreen({ engine, onBack, onComplete }: {
   const calibrationReady = quality.ready || quality.issue === 'eyes-closed';
 
   useEffect(() => { engine.startCalibration(); }, [engine]);
+  useAndroidBack(onBack);
 
   useEffect(() => {
     if (live.calibration !== 'done' || completedRef.current) return;
 
-    completedRef.current = true;
-    const transitionTimer = setTimeout(onComplete, 600);
+    // Engine өмнөх жолоодлогын 'done' төлөвийг хадгалдаг тул эхний render түүнийг
+    // харж болно. Тэр timer startCalibration()-ийн дараах render-т цуцлагдана.
+    // Тиймээс дууссан гэж зөвхөн шилжилт бодитоор эхлэхэд тэмдэглэнэ.
+    const transitionTimer = setTimeout(() => {
+      completedRef.current = true;
+      onComplete();
+    }, 600);
     return () => clearTimeout(transitionTimer);
   }, [live.calibration, onComplete]);
 

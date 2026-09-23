@@ -10,6 +10,7 @@ import {
 } from '@/features/computer-vision';
 import type { FatigueEngine } from '@/features/fatigue/engine';
 import { useFatigueState } from '@/features/fatigue/use-fatigue-state';
+import { useAndroidBack } from '@/hooks/use-android-back';
 import { Card, PrimaryButton } from '../components/ui';
 import { colors } from '../theme';
 import type { FatigueState, SessionSummary } from '../types';
@@ -37,6 +38,9 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
     engine.accept(next);
   }, [engine]);
   const handleStatus = useCallback((status: VisionStatus) => engine.onCameraStatus(status), [engine]);
+  // Жолоодлогын үед back дарахад аппаас шууд гаргахгүй, дуусгах эсэхийг асууна.
+  const openFinishConfirm = useCallback(() => setShowConfirm(true), []);
+  useAndroidBack(openFinishConfirm);
 
   const formatted = useMemo(() => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`, [seconds]);
   const current = stateCopy[live.level];
