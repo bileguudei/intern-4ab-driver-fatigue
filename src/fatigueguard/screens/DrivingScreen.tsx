@@ -21,6 +21,12 @@ const stateCopy: Record<FatigueState, { label: string; color: string; message: s
   warning: { label: 'Анхаар', color: colors.warning, message: 'Ядралтын шинж илэрч байна' },
   critical: { label: 'АЮУЛТАЙ', color: colors.critical, message: 'ЯАРАЛТАЙ ЗОГСОЖ АМАРНА УУ' },
 };
+const fatigueBanner = { warning: '⚠ ЯДРАЛТЫН ШИНЖ ИЛЭРЛЭЭ', critical: '⚠ ЯАРАЛТАЙ ЗОГСОЖ АМАРНА УУ' };
+/** Толгой хажуу тийш удаан эргэсэн үеийн текст — ядаргаа биш, анхаарал сарнилт. */
+const distractionCopy = {
+  warning: { message: 'Зам руугаа хараарай', banner: '⚠ ЗАМ РУУГАА ХАРААРАЙ' },
+  critical: { message: 'Замаас удаан харахгүй байна', banner: '⚠ ЗАМ РУУГАА ХАРААРАЙ' },
+};
 
 export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onFinish: (summary: SessionSummary) => void }) {
   const live = useFatigueState(engine);
@@ -51,6 +57,10 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
 
   const formatted = useMemo(() => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`, [seconds]);
   const current = stateCopy[live.level];
+  const alertLevel = live.level === 'normal' ? null : live.level;
+  const distraction = alertLevel !== null && live.alertReason === 'distraction' ? distractionCopy[alertLevel] : null;
+  const message = distraction?.message ?? current.message;
+  const banner = alertLevel === null ? null : (distraction?.banner ?? fatigueBanner[alertLevel]);
   const active = permission === 'granted' && isDriverFatigueVisionAvailable;
   const faceDetected = observation?.faceDetected === true;
   const eyesVisible = observation?.averageEar !== null && observation?.averageEar !== undefined;
@@ -72,7 +82,7 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
       </View>
 
       {dismissedLevel !== live.level && live.level !== 'normal' ? <View style={[styles.alert, { borderColor: current.color, backgroundColor: live.level === 'critical' ? colors.criticalDark : colors.warningDark }]}>
-        <Text style={[styles.alertText, { color: current.color }]}>{live.level === 'critical' ? '⚠ ЯАРАЛТАЙ ЗОГСОЖ АМАРНА УУ' : '⚠ ЯДРАЛТЫН ШИНЖ ИЛЭРЛЭЭ'}</Text>
+        <Text style={[styles.alertText, { color: current.color }]}>{banner}</Text>
         <Pressable onPress={() => setDismissedLevel(live.level)} hitSlop={12}><Text style={styles.close}>×</Text></Pressable>
       </View> : null}
 
@@ -88,7 +98,7 @@ export function DrivingScreen({ engine, onFinish }: { engine: FatigueEngine; onF
 
       <View style={styles.bottomHud}>
         <View style={styles.summaryRow}>
-          <View><Text style={[styles.levelTitle, { color: current.color }]}>{current.label}</Text><Text style={styles.levelMessage}>{current.message}</Text></View>
+          <View><Text style={[styles.levelTitle, { color: current.color }]}>{current.label}</Text><Text style={styles.levelMessage}>{message}</Text></View>
           <View style={[styles.scorePill, { borderColor: current.color }]}><Text style={[styles.score, { color: current.color }]}>{live.score}</Text><Text style={styles.scoreSuffix}>/100</Text></View>
         </View>
         <View style={styles.checkRow}>

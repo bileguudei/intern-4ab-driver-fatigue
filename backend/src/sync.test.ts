@@ -49,14 +49,17 @@ let env: Env;
 beforeEach(() => {
   const created = createD1(schema);
   db = created.db;
-  env = { DB: created.d1 } as unknown as Env;
+  env = { DB: created.d1, APP_API_KEY: "test-key" } as unknown as Env;
 });
 
 function sync(operations: unknown[]) {
   return worker.fetch(
     new Request("http://localhost/api/sync", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer test-key",
+      },
       body: JSON.stringify({ driver_id: 1, operations }),
     }),
     env,

@@ -153,6 +153,62 @@ describe("RAG helpers", () => {
   });
 });
 
+describe("App-wide authentication", () => {
+  it("rejects requests without the app API key", async () => {
+    const response = await worker.fetch(
+      new Request("https://example.com/api/advice", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fatigueScore: 82 }),
+      }),
+      { DB: makeDb(), APP_API_KEY: "test-key" } as any,
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects requests with the wrong app API key", async () => {
+    const response = await worker.fetch(
+      new Request("https://example.com/api/advice", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer wrong-key",
+        },
+        body: JSON.stringify({ fatigueScore: 82 }),
+      }),
+      { DB: makeDb(), APP_API_KEY: "test-key" } as any,
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("does not require the app API key for /api/rag/ingest, which has its own key", async () => {
+    // APP_API_KEY is set but no Authorization header is sent, and
+    // INGEST_API_KEY is deliberately left unset. If the app-wide gate applied
+    // here it would reject with its own "Unauthorized" 401 before ever
+    // reaching ingestKnowledgeDocument. Getting ingest's distinct 500 message
+    // instead proves the gate was skipped for this route.
+    const response = await worker.fetch(
+      new Request("https://example.com/api/rag/ingest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "x",
+          category: "x",
+          source: "x",
+          documentText: "x",
+        }),
+      }),
+      { DB: makeDb(), APP_API_KEY: "test-key" } as any,
+    );
+
+    expect(response.status).toBe(500);
+    const json = (await response.json()) as { error: string };
+    expect(json.error).toContain("INGEST_API_KEY");
+  });
+});
+
 describe("Advice API", () => {
   it("validates the request and returns advice with sources", async () => {
     const ragRows = [
@@ -174,6 +230,7 @@ describe("Advice API", () => {
     const env = {
       DB: makeDb(ragRows),
       GEMINI_API_KEY: "test-key",
+      APP_API_KEY: "test-key",
       VECTORIZE: makeVectorize([
         { id: "chunk-1", score: 0.91, metadata: { chunkId: "chunk-1" } },
       ]),
@@ -182,7 +239,10 @@ describe("Advice API", () => {
     const response = await worker.fetch(
       new Request("https://example.com/api/advice", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer test-key",
+        },
         body: JSON.stringify({
           sessionId: "session-123",
           fatigueScore: 82,
@@ -215,13 +275,17 @@ describe("Advice API", () => {
     const env = {
       DB: makeDb(),
       GEMINI_API_KEY: "test-key",
+      APP_API_KEY: "test-key",
       VECTORIZE: makeVectorize([]),
     } as any;
 
     const response = await worker.fetch(
       new Request("https://example.com/api/advice", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer test-key",
+        },
         body: JSON.stringify({ fatigueScore: 82 }),
       }),
       env,
@@ -240,12 +304,16 @@ describe("Advice API", () => {
     const response = await worker.fetch(
       new Request("https://example.com/api/advice", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer test-key",
+        },
         body: JSON.stringify({ sessionId: "session-123" }),
       }),
       {
         DB: makeDb(),
         GEMINI_API_KEY: "test-key",
+        APP_API_KEY: "test-key",
         VECTORIZE: makeVectorize(),
       } as any,
     );
@@ -261,13 +329,17 @@ describe("Advice API", () => {
     const env = {
       DB: makeDb(),
       GEMINI_API_KEY: "test-key",
+      APP_API_KEY: "test-key",
       VECTORIZE: makeVectorize(),
     } as any;
 
     const response = await worker.fetch(
       new Request("https://example.com/api/advice", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer test-key",
+        },
         body: JSON.stringify({ fatigueScore: 82 }),
       }),
       env,
@@ -276,5 +348,115 @@ describe("Advice API", () => {
     expect(response.status).toBe(500);
     const json = (await response.json()) as { error: string };
     expect(json.error).toContain("Gemini");
+  });
+});
+
+describe("Advice generation fallback", () => {
+  const env = () =>
+    ({
+      DB: makeDb(),
+      GEMINI_API_KEY: "test-key",
+      APP_API_KEY: "test-key",
+      VECTORIZE: makeVectorize(),
+    }) as any;
+
+  const requestAdvice = () =>
+    worker.fetch(
+      new Request("https://example.com/api/advice", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer test-key",
+        },
+        body: JSON.stringify({ fatigueScore: 82 }),
+      }),
+      env(),
+    );
+
+  function mockGeneration(
+    respond: (model: string) => Response | Promise<Response>,
+  ) {
+    const models: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes(":batchEmbedContents")) {
+        return mockGeminiFetch()(input, init);
+      }
+      const model = url.match(/models\/([^:]+):generateContent/)?.[1] ?? "";
+      models.push(model);
+      return respond(model);
+    }) as typeof fetch;
+    return models;
+  }
+
+  const answer = (parts: Array<{ text: string; thought?: boolean }>) =>
+    new Response(JSON.stringify({ candidates: [{ content: { parts } }] }), {
+      status: 200,
+    });
+
+  it("falls back to the next model when one is overloaded", async () => {
+    const models = mockGeneration((model) =>
+      model === "gemini-3.6-flash"
+        ? new Response("{}", { status: 503 })
+        : answer([{ text: "Түр зогсоод амраарай." }]),
+    );
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as { advice: string }).advice).toBe(
+      "Түр зогсоод амраарай.",
+    );
+    expect(models).toEqual(["gemini-3.6-flash", "gemini-flash-lite-latest"]);
+  });
+
+  it("falls back when a model times out", async () => {
+    const models = mockGeneration((model) => {
+      if (model === "gemini-3.6-flash") {
+        throw new DOMException("timed out", "TimeoutError");
+      }
+      return answer([{ text: "Амраарай." }]);
+    });
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(201);
+    expect(models).toEqual(["gemini-3.6-flash", "gemini-flash-lite-latest"]);
+  });
+
+  it("hides the model's thought parts from the driver", async () => {
+    mockGeneration(() =>
+      answer([
+        { text: "Role: driver-safety assistant...", thought: true },
+        { text: "Анхааруулга! Түр зогсоорой." },
+      ]),
+    );
+
+    const response = await requestAdvice();
+
+    expect(((await response.json()) as { advice: string }).advice).toBe(
+      "Анхааруулга! Түр зогсоорой.",
+    );
+  });
+
+  it("reports an error only after every model fails", async () => {
+    const models = mockGeneration(() => new Response("{}", { status: 503 }));
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(500);
+    expect(((await response.json()) as { error: string }).error).toContain(
+      "all models",
+    );
+    expect(models).toHaveLength(3);
+  });
+
+  it("does not retry on a non-transient error such as a bad API key", async () => {
+    const models = mockGeneration(() => new Response("{}", { status: 403 }));
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(500);
+    expect(models).toEqual(["gemini-3.6-flash"]);
   });
 });

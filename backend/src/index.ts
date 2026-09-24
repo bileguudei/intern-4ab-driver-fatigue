@@ -25,6 +25,7 @@ interface VectorizeBinding {
       metadata?: Record<string, unknown>;
     }>,
   ): Promise<unknown>;
+  deleteByIds(ids: string[]): Promise<unknown>;
 }
 
 export interface Env {
@@ -34,6 +35,7 @@ export interface Env {
   VECTORIZE?: VectorizeBinding;
   GEMINI_API_KEY?: string;
   INGEST_API_KEY?: string;
+  APP_API_KEY?: string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -48,7 +50,19 @@ const corsHeaders = {
 
 const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
 const GEMINI_EMBEDDING_DIMENSIONS = 768;
-const GEMINI_LLM_MODEL = "gemini-flash-lite-latest";
+const GEMINI_EMBED_TIMEOUT_MS = 15_000;
+// Үнэгүй түвшинд загварууд ээлжлэн 503 өгч эсвэл гацдаг тул дарааллаар оролдоно.
+// Хурдан бүтэлгүйтдэг загварыг удаан ч найдвартай gemma-гаас өмнө тавив.
+const GEMINI_LLM_MODELS: ReadonlyArray<{
+  model: string;
+  timeoutMs: number;
+  thinkingLevel?: "minimal";
+}> = [
+  { model: "gemini-3.6-flash", timeoutMs: 20_000, thinkingLevel: "minimal" },
+  { model: "gemini-flash-lite-latest", timeoutMs: 10_000 },
+  { model: "gemma-4-26b-a4b-it", timeoutMs: 30_000 },
+];
+const RETRYABLE_GEMINI_STATUSES = new Set([429, 500, 502, 503, 504]);
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_EMBED_BATCH_SIZE = 100;
 const DEFAULT_RAG_TOP_K = 5;
@@ -73,6 +87,7 @@ async function embedTexts(env: Env, texts: string[]): Promise<number[][]> {
             outputDimensionality: GEMINI_EMBEDDING_DIMENSIONS,
           })),
         }),
+        signal: AbortSignal.timeout(GEMINI_EMBED_TIMEOUT_MS),
       },
     );
     if (!res.ok) {
@@ -100,29 +115,54 @@ async function generateAdviceText(
   userPrompt: string,
 ): Promise<string | null> {
   if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const res = await fetch(
-    `${GEMINI_API_BASE}/models/${GEMINI_LLM_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      }),
-    },
-  );
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Gemini generation request failed (${res.status}): ${errText}`);
+  const failures: string[] = [];
+  for (const { model, timeoutMs, thinkingLevel } of GEMINI_LLM_MODELS) {
+    let res: Response;
+    try {
+      res = await fetch(
+        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            ...(thinkingLevel
+              ? { generationConfig: { thinkingConfig: { thinkingLevel } } }
+              : {}),
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        },
+      );
+    } catch (error) {
+      failures.push(`${model}: ${error instanceof Error ? error.name : "fetch failed"}`);
+      continue;
+    }
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      if (RETRYABLE_GEMINI_STATUSES.has(res.status)) {
+        failures.push(`${model}: ${res.status}`);
+        continue;
+      }
+      throw new Error(`Gemini generation request failed (${res.status}): ${errText}`);
+    }
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      }>;
+    };
+    // Зарим загвар (gemma) дотоод бодлоо thought: true хэсэг болгон буцаадаг —
+    // үүнийг жолоочид харуулахгүй.
+    const text = data.candidates?.[0]?.content?.parts
+      ?.filter((part) => !part.thought)
+      .map((part) => part.text ?? "")
+      .join("")
+      .trim();
+    return text && text.length > 0 ? text : null;
   }
-  const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text = data.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text ?? "")
-    .join("")
-    .trim();
-  return text && text.length > 0 ? text : null;
+  throw new Error(
+    `Gemini generation failed on all models (${failures.join("; ")})`,
+  );
 }
 
 function response(
@@ -463,14 +503,40 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
     text = await object.text();
   }
 
-  const documentId = crypto.randomUUID();
-  await env.DB.prepare(
-    "INSERT INTO rag_documents (id, title, source, file_key, category) VALUES (?, ?, ?, ?, ?)",
+  // Ижил source-той хуучин баримт байвал эхлээд түүнийг хасна — эс тэгвээс
+  // шинэчилж дахин ingest хийх бүрд хуучин, шинэ chunk хамт давхцаж үлдэнэ.
+  const staleDocuments = await env.DB.prepare(
+    "SELECT id FROM rag_documents WHERE source = ?",
   )
-    .bind(documentId, title, source, fileKey, category)
-    .run();
+    .bind(source)
+    .all<{ id: string }>();
+  for (const stale of staleDocuments.results) {
+    const staleChunks = await env.DB.prepare(
+      "SELECT vector_id FROM rag_chunks WHERE document_id = ?",
+    )
+      .bind(stale.id)
+      .all<{ vector_id: string }>();
+    const staleVectorIds = staleChunks.results.map((row) => row.vector_id);
+    if (staleVectorIds.length > 0 && env.VECTORIZE) {
+      await env.VECTORIZE.deleteByIds(staleVectorIds);
+    }
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM rag_chunks WHERE document_id = ?").bind(
+        stale.id,
+      ),
+      env.DB.prepare("DELETE FROM rag_documents WHERE id = ?").bind(stale.id),
+    ]);
+  }
 
+  const documentId = crypto.randomUUID();
   const chunks = chunkText(text, { chunkSize: 800, overlap: 120 });
+  if (chunks.length === 0)
+    throw new Error("Document text is empty after chunking");
+
+  // Эмбеддинг тооцоолсны дараа л D1/Vectorize-д бичнэ — эс тэгвээс Gemini
+  // дуудлага бүтэлгүйтвэл агуулгагүй "сүнс" баримт rag_documents-д үлддэг.
+  const chunkEmbeddings = await embedTexts(env, chunks);
+
   const vectors: Array<{
     id: string;
     values: number[];
@@ -486,8 +552,6 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
     content: string;
     vector_id: string;
   }> = [];
-
-  const chunkEmbeddings = await embedTexts(env, chunks);
 
   for (let index = 0; index < chunks.length; index += 1) {
     const content = chunks[index];
@@ -520,6 +584,12 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
       vector_id: vectorId,
     });
   }
+
+  await env.DB.prepare(
+    "INSERT INTO rag_documents (id, title, source, file_key, category) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(documentId, title, source, fileKey, category)
+    .run();
 
   if (vectors.length > 0) {
     await env.VECTORIZE.upsert(vectors);
@@ -684,6 +754,23 @@ export default {
     try {
       if (url.pathname === "/api/health" && request.method === "GET")
         return response({ ok: true });
+
+      // /api/rag/ingest хамгаалдаг өөрийн (INGEST_API_KEY) шалгалттай тул энд
+      // давхар шаардахгүй. Бусад бүх endpoint энэ апп-ын нэгдсэн key-г шаардана —
+      // энэ нь тухайн жолоочийг мэдэгддэггүй, зөвхөн энэ манай апп мөн гэдгийг
+      // баталгаажуулна (mobile apps дотор орсон key нь bundle-с задалж авах
+      // боломжтой тул зөвхөн санамсаргүй/олон нийтийн хандалтаас хамгаална).
+      if (url.pathname !== "/api/rag/ingest") {
+        if (!env.APP_API_KEY)
+          throw new Error("APP_API_KEY is not configured; refusing all requests");
+        const authHeader = request.headers.get("authorization") ?? "";
+        const providedKey = authHeader.startsWith("Bearer ")
+          ? authHeader.slice("Bearer ".length)
+          : "";
+        if (providedKey !== env.APP_API_KEY)
+          return errorResponse("Unauthorized", 401);
+      }
+
       if (url.pathname === "/api/advice" && request.method === "POST")
         return await onAdviceRequest(request, env);
       if (url.pathname === "/api/sessions" && request.method === "POST")
