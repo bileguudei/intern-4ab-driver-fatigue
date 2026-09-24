@@ -6,7 +6,7 @@ import { computeScore, nextLevel } from '../score';
 import type { YawnState } from '../yawn';
 
 const eyes = (patch: Partial<EyeState> = {}): EyeState => ({ closed: false, closureMs: 0, perclos: 0.03, ...patch });
-const head = (patch: Partial<HeadState> = {}): HeadState => ({ downDeg: 0, forwardLean: 0, droopMs: 0, quickNods: 0, ...patch });
+const head = (patch: Partial<HeadState> = {}): HeadState => ({ downDeg: 0, forwardLean: 0, droopMs: 0, quickNods: 0, turnedAway: false, ...patch });
 const yawn = (patch: Partial<YawnState> = {}): YawnState => ({ open: false, openMs: 0, yawns: 0, ...patch });
 
 describe('computeScore', () => {

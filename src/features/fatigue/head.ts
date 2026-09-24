@@ -30,6 +30,15 @@ const LEAN_REANCHOR = { stableMs: 10_000, maxRange: 0.04, blinkGraceMs: 500 };
  */
 const QUICK_NOD = { minMs: 300, maxMs: 3_000, maxRecoveryMs: 700 };
 const NOD_WINDOW_MS = 60_000;
+/**
+ * Толь, самбар руу харахад нүүр калибрацийн чиглэлээс хажуу тийш эргэнэ. Энэ
+ * үед pitch болон eyeBlink найдваргүй (хоёр тийш толь харахад хуурамч дохилт,
+ * анилт илэрч байв) тул хэмжилтийг нүүр алга болсонтой адил тооцно.
+ * Гистерезис нь босгыг шүргэх хэлбэлзлийг тогтворжуулна. Туршилтаар тааруулна.
+ */
+const TURNED_AWAY = { enterDeg: 20, exitDeg: 15 };
+/** Эргэлтээс буцах үеийн pitch-ийн савлагааг жижиг дохилт гэж тоолохгүй хугацаа. */
+const TURN_NOD_SETTLE_MS = 1_000;
 
 export type HeadState = Readonly<{
   /** Суурьтай харьцуулсан бөхийлт, градус. Эерэг = доош. */
@@ -40,6 +49,8 @@ export type HeadState = Readonly<{
   droopMs: number;
   /** Сүүлийн 60 сек-ийн жижиг, хурдан өндийсөн дохилтын тоо. */
   quickNods: number;
+  /** Нүүр калибрацийн чиглэлээс хажуу тийш эргэсэн (толь, самбар руу харсан) эсэх. */
+  turnedAway: boolean;
 }>;
 
 type Episode = { start: number; peak: number; peakAt: number; last: number };
@@ -78,12 +89,15 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
   let filteredForwardLean = 0;
   let steadyLean: SteadyLean | null = null;
   let eyesOpenAt: number | null = null;
+  let turnedAway = false;
+  let lastTurnedAt: number | null = null;
 
   return {
     update(observation: ComputerVisionObservation, baseline: Baseline): HeadState {
       const t = observation.timestampMs;
       const pitch = observation.headPose?.pitch;
-      const valid = observation.faceDetected && typeof pitch === 'number';
+      const yaw = observation.headPose?.yaw;
+      const tracked = observation.faceDetected && typeof pitch === 'number';
       const frameGap = lastObservationAt !== null && t - lastObservationAt > MAX_FRAME_MS;
       lastObservationAt = t;
 
@@ -95,7 +109,17 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
         filteredDown = 0;
         filteredForwardLean = 0;
         eyesOpenAt = null;
+        turnedAway = false;
       }
+
+      // Нүүр алга болоход сүүлийн эргэлтийн төлвийг хадгална — хажуу тийш
+      // эргэсээр алга болоод буцаж ирэхэд босгын дунд шууд хэвийн гэж үзэхгүй.
+      if (tracked && typeof yaw === 'number') {
+        const yawOffset = Math.abs(yaw - baseline.headYaw);
+        turnedAway = yawOffset > (turnedAway ? TURNED_AWAY.exitDeg : TURNED_AWAY.enterDeg);
+      }
+      if (turnedAway) lastTurnedAt = t;
+      const valid = tracked && !turnedAway;
 
       if (!valid) {
         steadyLean = null;
@@ -113,6 +137,7 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
           forwardLean: held ? filteredForwardLean : 0,
           droopMs: held && episode !== null ? t - episode.start : 0,
           quickNods: nods.length,
+          turnedAway,
         };
       }
 
@@ -163,7 +188,10 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
 
       const current: Episode | null = episode;
       if (current !== null && down < NOD_END_DEG && forwardLean < FORWARD_LEAN_END_RATIO) {
-        nods = isQuickNod(current, t) ? [...nods, t] : nods;
+        // Эргэлтийн дундуур эсвэл дөнгөж буцсаны дараа эхэлсэн episode нь толь
+        // харсны pitch-ийн савлагаа — нойрмоглолын дохилт биш.
+        const afterTurn = lastTurnedAt !== null && current.start - lastTurnedAt <= TURN_NOD_SETTLE_MS;
+        nods = isQuickNod(current, t) && !afterTurn ? [...nods, t] : nods;
         episode = null;
       }
       const postureStrength = Math.max(
@@ -187,6 +215,7 @@ export function createHeadTracker(initialBounds: FaceBounds | null = null) {
         forwardLean,
         droopMs: active === null ? 0 : t - active.start,
         quickNods: nods.length,
+        turnedAway,
       };
     },
   };
