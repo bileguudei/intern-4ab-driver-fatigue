@@ -63,8 +63,16 @@ export type FatigueEvent = Readonly<{
   speedKmh?: number;
 }>;
 
+/**
+ * Дохио юунаас болж гарсан бэ. `distraction` — толгой хажуу тийш удаан
+ * эргэсэн (замаас харахгүй байгаа), ядаргааны шинж илрээгүй.
+ */
+export type AlertReason = 'fatigue' | 'distraction';
+
 export type FatigueEngineState = Readonly<{
   level: FatigueLevel;
+  /** Түвшин хэвийн бол null. */
+  alertReason: AlertReason | null;
   score: number;
   cameraStatus: VisionStatus;
   /** Камер ажиллаж, нүүрний өгөгдөл ирж байгаа эсэх. */
@@ -97,7 +105,7 @@ export function createFatigueEngine({
   const listeners = new Set<(state: FatigueEngineState) => void>();
   const events: FatigueEvent[] = [];
   let state: FatigueEngineState = {
-    level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null,
+    level: 'normal', alertReason: null, score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null,
     stationary: false, breakDue: false, breakReminders: 0,
   };
   let samples: ComputerVisionObservation[] = [];
@@ -172,11 +180,24 @@ export function createFatigueEngine({
     const ignoreEyes = yawnState.open;
     const eyeState = ignoreEyes ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const score = computeScore(eyeState, headState, yawnState);
-    const level = nextLevel(state.level, score, eyeState, headState, yawnState, {
-      faceMissingMs,
+    const levelContext = {
       stationary: state.stationary,
       highSpeed: speedKmh !== null && speedKmh >= HIGH_SPEED_KMH,
-    });
+    };
+    const level = nextLevel(state.level, score, eyeState, headState, yawnState, { faceMissingMs, ...levelContext });
+    // Хажуу тийш эргэсэн хугацааны тоолуураас л түвшин өссөн бол ядаргаа биш,
+    // анхаарал сарнилт — жолоочид «зам руугаа хараарай» гэж хэлнэ. Нүүр
+    // эргээгүй алга болбол (толгой унжих) ядаргаа хэвээр. Ядаргааны дохио аль
+    // хэдийн гарсан бол хэвийн болтол ядаргаа гэж харуулсаар байна.
+    const fatigueLevel = faceMissingMs === null
+      ? level
+      : nextLevel(state.level, score, eyeState, headState, yawnState, levelContext);
+    const alertReason: AlertReason | null =
+      level === 'normal'
+        ? null
+        : LEVEL_RANK[fatigueLevel] >= LEVEL_RANK[level] || state.alertReason === 'fatigue' || !headState.turnedAway
+          ? 'fatigue'
+          : 'distraction';
     const longClosure = eyeState.closureMs >= CRITICAL_CLOSURE_MS;
     const blindDistanceM = speedKmh === null || eyeState.closureMs < BLIND_CLOSURE_MS ? 0 : (speedKmh / 3.6) * (eyeState.closureMs / 1000);
     session = {
@@ -197,7 +218,7 @@ export function createFatigueEngine({
     // fatigue_warning гэж бүртгэдэг байсан тул анхааруулгын тоо хөөрөгддөг байв.
     const escalated = LEVEL_RANK[level] > LEVEL_RANK[state.level];
     if (escalated) record(level === 'critical' ? 'fatigue_critical' : 'fatigue_warning');
-    update({ score, level });
+    update({ score, level, alertReason });
     return level;
   };
 
@@ -262,7 +283,7 @@ export function createFatigueEngine({
       stoppedSince = null;
       nextBreakAtMs = BREAK.afterMs;
       update({
-        calibration: 'running', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null, level: 'normal', score: 0,
+        calibration: 'running', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null, level: 'normal', alertReason: null, score: 0,
         stationary: false, breakDue: false, breakReminders: 0,
       });
     },

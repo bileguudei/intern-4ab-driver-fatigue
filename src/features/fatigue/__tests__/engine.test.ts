@@ -473,7 +473,36 @@ describe('createFatigueEngine', () => {
       for (let t = 10_050; t <= 12_100; t += 50) {
         engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8, headPose: { pitch: 3, yaw: 15, roll: 0 } });
       }
-      expect(engine.getState().level).toBe('critical');
+      expect(engine.getState()).toMatchObject({ level: 'critical', alertReason: 'fatigue' });
+    });
+
+    it('хажуу тийш удаан эргэсэн дохиог ядаргаа биш, анхаарал сарнилт гэж тэмдэглэнэ', () => {
+      const engine = calibrated();
+      const turned = (t: number) => ({ ...observation(true, t), headPose: { pitch: 3, yaw: 40, roll: 0 } });
+      for (let t = 10_050; t <= 12_050; t += 50) engine.accept(turned(t));
+      expect(engine.getState()).toMatchObject({ level: 'warning', alertReason: 'distraction' });
+      for (let t = 12_100; t <= 13_050; t += 50) engine.accept(turned(t));
+      expect(engine.getState()).toMatchObject({ level: 'critical', alertReason: 'distraction' });
+      for (let t = 13_100; t <= 16_000; t += 50) engine.accept(observation(true, t));
+      expect(engine.getState()).toMatchObject({ level: 'normal', alertReason: null });
+    });
+
+    it('нүүр эргээгүй алга болбол (толгой унжих) ядаргаа гэж үзнэ', () => {
+      const engine = calibrated();
+      for (let t = 10_050; t <= 13_050; t += 50) engine.accept(observation(false, t));
+      expect(engine.getState()).toMatchObject({ level: 'critical', alertReason: 'fatigue' });
+    });
+
+    it('ядаргааны дохионы үеэр толгой эргэвэл ядаргаа гэж харуулсаар байна', () => {
+      const engine = calibrated();
+      for (let t = 10_050; t <= 12_100; t += 50) {
+        engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8 });
+      }
+      expect(engine.getState()).toMatchObject({ level: 'critical', alertReason: 'fatigue' });
+      for (let t = 12_150; t <= 16_000; t += 50) {
+        engine.accept({ ...observation(true, t), headPose: { pitch: 3, yaw: 40, roll: 0 } });
+      }
+      expect(engine.getState()).toMatchObject({ level: 'critical', alertReason: 'fatigue' });
     });
   });
 
