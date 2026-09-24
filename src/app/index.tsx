@@ -27,6 +27,7 @@ import {
   finalizeAbandonedSessions,
 } from "@/data/local-db";
 import { syncPendingData } from "@/data/sync";
+import { driverIdentity } from "@/features/driver";
 import { themePreference } from "@/features/theme/theme-preference";
 
 const emptySummary: SessionSummary = {
@@ -101,6 +102,8 @@ export default function GuardApp() {
     void cancelLeftoverStoppedReminders().catch((error) =>
       console.warn("Unable to clear monitoring reminders:", error),
     );
+    // Утсыг серверт тусдаа жолооч болгон бүртгэнэ. Офлайн бол sync хийх үед дахин оролдоно.
+    void driverIdentity.ensureRegistered();
     // Өмнө нь дуусаагүй үлдсэн сессийг эхлээд хааж, дараа нь sync хийнэ.
     void finalizeAbandonedSessions()
       .catch((error) =>

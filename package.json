@@ -52,7 +52,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/features/fatigue/__tests__ src/features/computer-vision/__tests__ src/features/speed/__tests__"
+    "test": "bun test src/features/fatigue/__tests__ src/features/computer-vision/__tests__ src/features/speed/__tests__ src/features/driver/__tests__"
   },
   "private": true
 }

@@ -1,3 +1,5 @@
+import { driverIdentity } from '@/features/driver';
+
 import { getPendingSyncOperations, markSynced } from './local-db';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE ?? 'http://127.0.0.1:8787';
@@ -30,9 +32,17 @@ export function syncPendingData(driverId = 1): Promise<number> {
     return running;
 }
 
-async function syncOnce(driverId: number) {
-    const pending = await getPendingSyncOperations(driverId);
+/**
+ * `localDriverId` — утасны санд бичигдсэн жолооч (үргэлж 1). Серверт утас бүр
+ * тусдаа жолооч тул илгээхдээ бүртгэлээр авсан серверийн дугаарыг хэрэглэнэ.
+ */
+async function syncOnce(localDriverId: number) {
+    const pending = await getPendingSyncOperations(localDriverId);
     if (pending.sessions.length === 0 && pending.events.length === 0) return 0;
+
+    // Бүртгэл амжаагүй (офлайн) бол аяллууд утсанд үлдэж, дараагийн sync-ээр явна.
+    const driverId = await driverIdentity.ensureRegistered();
+    if (driverId === null) throw new Error('Driver is not registered with the server yet');
 
     // Сессүүд эхэнд байх тул явдал бүрийн сесс өмнөх эсвэл ижил хүсэлтэд очно.
     const operations = [
@@ -42,7 +52,7 @@ async function syncOnce(driverId: number) {
             resource_id: session.client_id,
             payload: {
                 client_id: session.client_id,
-                driver_id: session.driver_id,
+                driver_id: driverId,
                 started_at: session.started_at,
                 ended_at: session.ended_at,
                 fatigue_score: session.fatigue_score,
@@ -65,7 +75,7 @@ async function syncOnce(driverId: number) {
             payload: {
                 client_id: event.client_id,
                 session_client_id: event.session_client_id,
-                driver_id: event.driver_id,
+                driver_id: driverId,
                 level: event.level,
                 fatigue_score: event.fatigue_score,
                 event_at: event.event_at,
