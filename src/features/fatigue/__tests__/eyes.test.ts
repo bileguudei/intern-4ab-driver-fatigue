@@ -5,7 +5,7 @@ import type { ComputerVisionObservation } from '@/features/computer-vision';
 import type { Baseline } from '../calibration';
 import { createEyeTracker, type EyeState } from '../eyes';
 
-const BASELINE: Baseline = { blinkOpen: 0.2, blinkClosed: 0.55, earOpen: 0.26, earClosed: 0.1, headPitch: 0 };
+const BASELINE: Baseline = { blinkOpen: 0.2, blinkClosed: 0.55, earOpen: 0.26, earClosed: 0.1, headPitch: 0, headYaw: 0 };
 const OPEN = 0.2;
 const CLOSED = 0.75;
 

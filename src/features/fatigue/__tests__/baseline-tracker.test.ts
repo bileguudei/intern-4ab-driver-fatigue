@@ -5,7 +5,7 @@ import type { ComputerVisionObservation } from '@/features/computer-vision';
 import { createBaselineTracker } from '../baseline-tracker';
 import { type Baseline, deriveBaseline } from '../calibration';
 
-const CALIBRATED: Baseline = deriveBaseline(0.1, 0.26, 8.6);
+const CALIBRATED: Baseline = deriveBaseline(0.1, 0.26, 8.6, 0);
 const FRAME_MS = 66; // ~15 фр/сек
 
 function frame(t: number, over: Partial<ComputerVisionObservation> = {}): ComputerVisionObservation {
