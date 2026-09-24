@@ -66,6 +66,9 @@ async function saveFatigueEvents(
 export default function GuardApp() {
   const [route, setRoute] = useState<Route>({ kind: "tabs", tab: "home" });
   const [summary, setSummary] = useState<SessionSummary>(emptySummary);
+  const [completedSessionClientId, setCompletedSessionClientId] = useState<
+    string | null
+  >(null);
   // Калибрациас буцаж ирэхэд камерын дэлгэц дахин автоматаар урагшилбал
   // хэрэглэгч гарч чадахгүй давталтад ордог.
   const [cameraAutoContinue, setCameraAutoContinue] = useState(true);
@@ -179,6 +182,7 @@ export default function GuardApp() {
         maxSpeedKmh: data.maxSpeedKmh ?? null,
       });
       await saveFatigueEvents(engine, clientId, savedEventIds.current);
+      setCompletedSessionClientId(clientId);
       // Дараагийн аяллын калибрацийн үеийн явдлыг энэ сесст бичихгүй.
       activeSessionClientId.current = null;
       void syncPendingData().catch((error) =>
@@ -235,7 +239,11 @@ export default function GuardApp() {
     );
   } else if (route.screen === "advice") {
     screen = (
-      <AdviceScreen summary={summary} onBack={() => showFlow("summary")} />
+      <AdviceScreen
+        summary={summary}
+        sessionClientId={completedSessionClientId}
+        onBack={() => showFlow("summary")}
+      />
     );
   }
 
