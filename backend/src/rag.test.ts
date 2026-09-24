@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import worker from "./index";
 import {
+  adviceRiskInstruction,
   buildAdviceQuery,
   chunkText,
+  classifyFatigueRisk,
   createVectorMetadata,
+  formatPerclos,
   normalizeAdviceRequest,
   selectRelevantChunks,
   toPlainText,
@@ -469,5 +472,86 @@ describe("Advice generation fallback", () => {
 
     expect(response.status).toBe(500);
     expect(models).toEqual(["gemini-3.6-flash"]);
+  });
+});
+
+describe("fatigue risk in advice", () => {
+  const base = {
+    sessionId: "session-1",
+    driverId: 2,
+    fatigueScore: 5,
+    averageFatigueScore: 1,
+    maxFatigueScore: 5,
+    driveDurationMinutes: 1,
+    prolongedEyeClosureCount: 0,
+    headNodCount: 0,
+    perclos: 0.02,
+    warningCount: 0,
+    criticalCount: 0,
+  };
+
+  it("classifies risk with the app's 40/70 thresholds and alert counts", () => {
+    expect(classifyFatigueRisk(base)).toBe("low");
+    expect(classifyFatigueRisk({ ...base, maxFatigueScore: 45 })).toBe("moderate");
+    expect(classifyFatigueRisk({ ...base, warningCount: 1 })).toBe("moderate");
+    expect(classifyFatigueRisk({ ...base, headNodCount: 2 })).toBe("moderate");
+    expect(classifyFatigueRisk({ ...base, fatigueScore: 75 })).toBe("high");
+    expect(classifyFatigueRisk({ ...base, criticalCount: 1 })).toBe("high");
+    expect(classifyFatigueRisk({ ...base, prolongedEyeClosureCount: 1 })).toBe("high");
+  });
+
+  it("tells retrieval the 0-100 scale and asks for preventive guidance when risk is low", () => {
+    const query = buildAdviceQuery(base);
+    expect(query).toContain("0-100");
+    expect(query).toContain("LOW");
+    expect(query).toContain("preventive");
+    expect(query).not.toContain("urgent");
+  });
+
+  it("does not ask the model to stop the driver when risk is low", () => {
+    expect(adviceRiskInstruction("low")).toContain("Do NOT tell the driver to stop");
+    expect(adviceRiskInstruction("high")).toContain("Recommend stopping");
+  });
+
+  it("reads alert counts in camelCase and snake_case", () => {
+    expect(normalizeAdviceRequest({ fatigueScore: 5, warningCount: 2, criticalCount: 1 })).toMatchObject({ warningCount: 2, criticalCount: 1 });
+    expect(normalizeAdviceRequest({ fatigueScore: 5, warning_count: 3, critical_count: 0 })).toMatchObject({ warningCount: 3, criticalCount: 0 });
+    expect(normalizeAdviceRequest({ fatigueScore: 5 })).toMatchObject({ warningCount: null, criticalCount: null });
+  });
+
+  it("formats PERCLOS as a percentage", () => {
+    expect(formatPerclos(0.18)).toBe("18%");
+    expect(formatPerclos(null)).toBe("n/a");
+  });
+
+  it("sends the risk level and scale to Gemini and returns it to the app", async () => {
+    let generationBody = "";
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes(":batchEmbedContents")) {
+        return new Response(JSON.stringify({ embeddings: [{ values: [0.1, 0.2, 0.3] }] }), { status: 200 });
+      }
+      generationBody = String(init?.body ?? "");
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: "Ядаргааны шинж илрээгүй." }] } }] }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const response = await worker.fetch(
+      new Request("https://example.com/api/rag/advice", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer test-key" },
+        body: JSON.stringify(base),
+      }),
+      { DB: makeDb([]), GEMINI_API_KEY: "test-key", APP_API_KEY: "test-key", VECTORIZE: makeVectorize([]) } as any,
+    );
+
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as { riskLevel: string }).riskLevel).toBe("low");
+    expect(generationBody).toContain("Overall fatigue risk: LOW.");
+    expect(generationBody).toContain("0-100 scale");
+    expect(generationBody).toContain("Do NOT tell the driver to stop");
+    expect(generationBody).toContain("2%");
   });
 });

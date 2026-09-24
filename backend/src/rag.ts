@@ -14,6 +14,58 @@ export interface NormalizedAdviceRequest {
   prolongedEyeClosureCount: number | null;
   headNodCount: number | null;
   perclos: number | null;
+  /** Аялалд гарсан анхааруулга, аюултай дохионы тоо. Хуучин апп илгээдэггүй. */
+  warningCount?: number | null;
+  criticalCount?: number | null;
+}
+
+/**
+ * Апп-ын дохионы босготой ижил (src/features/fatigue/score.ts): оноо 0–100,
+ * 40-өөс warning, 70-аас critical. AI онооны хэмжээсийг таахгүйн тулд
+ * эрсдэлийг кодоор тогтоож prompt-д шууд хэлнэ.
+ */
+export const FATIGUE_THRESHOLDS = { warning: 40, critical: 70 } as const;
+
+export type FatigueRisk = "low" | "moderate" | "high";
+
+export const FATIGUE_SCALE_NOTE =
+  "Fatigue scores use a 0-100 scale: 0-39 is normal, 40-69 is a warning, 70-100 is critical.";
+
+export function classifyFatigueRisk(data: NormalizedAdviceRequest): FatigueRisk {
+  const peak = Math.max(data.fatigueScore, data.maxFatigueScore ?? 0);
+  if (
+    peak >= FATIGUE_THRESHOLDS.critical ||
+    (data.criticalCount ?? 0) > 0 ||
+    (data.prolongedEyeClosureCount ?? 0) > 0
+  ) {
+    return "high";
+  }
+  if (
+    peak >= FATIGUE_THRESHOLDS.warning ||
+    (data.warningCount ?? 0) > 0 ||
+    (data.headNodCount ?? 0) >= 2
+  ) {
+    return "moderate";
+  }
+  return "low";
+}
+
+/** Эрсдэлийн түвшинд тохирсон заавар — бага эрсдэлд зогсохыг зөвлөхгүй. */
+export function adviceRiskInstruction(risk: FatigueRisk): string {
+  if (risk === "high") {
+    return "Serious fatigue signs were detected. Recommend stopping at the nearest safe place to rest before continuing.";
+  }
+  if (risk === "moderate") {
+    return "Early fatigue signs were detected. Recommend a break at the next safe place soon, without overstating the danger.";
+  }
+  return "The driver showed no fatigue warning signs. Do NOT tell the driver to stop, pull over or that they are too tired to drive, and do not mention legal penalties. Give at most two short preventive tips, such as regular breaks on long trips and enough sleep.";
+}
+
+/** Апп PERCLOS-ыг 0–1 бутархайгаар илгээдэг — хувиар бичвэл AI зөв ойлгоно. */
+export function formatPerclos(perclos: number | null): string {
+  if (perclos === null) return "n/a";
+  const percent = perclos <= 1 ? perclos * 100 : perclos;
+  return `${Math.round(percent)}%`;
 }
 
 function asNumber(value: unknown): number | null {
@@ -71,10 +123,15 @@ export function normalizeAdviceRequest(
     headNodCount:
       asNumber(body.headNodCount) ?? asNumber(body.head_nod_count) ?? null,
     perclos: asNumber(body.perclos) ?? null,
+    warningCount:
+      asNumber(body.warningCount) ?? asNumber(body.warning_count) ?? null,
+    criticalCount:
+      asNumber(body.criticalCount) ?? asNumber(body.critical_count) ?? null,
   };
 }
 
 export function buildAdviceQuery(data: NormalizedAdviceRequest): string {
+  const risk = classifyFatigueRisk(data);
   const parts = [
     `Driver fatigue score is ${data.fatigueScore}.`,
     data.averageFatigueScore !== null
@@ -92,8 +149,23 @@ export function buildAdviceQuery(data: NormalizedAdviceRequest): string {
     data.headNodCount !== null
       ? `There were ${data.headNodCount} head nod events.`
       : null,
-    data.perclos !== null ? `The PERCLOS indicator is ${data.perclos}.` : null,
-    "What safety guidance is relevant for this driver state?",
+    data.warningCount !== null && data.warningCount !== undefined
+      ? `There were ${data.warningCount} fatigue warnings.`
+      : null,
+    data.criticalCount !== null && data.criticalCount !== undefined
+      ? `There were ${data.criticalCount} critical fatigue alerts.`
+      : null,
+    data.perclos !== null
+      ? `The PERCLOS indicator (share of time with eyes closed) is ${formatPerclos(data.perclos)}.`
+      : null,
+    FATIGUE_SCALE_NOTE,
+    `Overall fatigue risk is ${risk.toUpperCase()}.`,
+    // Хайлтын асуулга эрсдэлд тохирсон материал олоход нөлөөлнө.
+    risk === "low"
+      ? "What preventive guidance helps a driver who shows no fatigue signs stay alert?"
+      : risk === "moderate"
+        ? "What guidance is relevant for early signs of driver fatigue?"
+        : "What urgent safety guidance is relevant for a severely fatigued driver?",
   ].filter(
     (part): part is string => typeof part === "string" && part.length > 0,
   );

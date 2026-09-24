@@ -12,7 +12,7 @@ const CRITICAL_FORWARD_LEAN = { enter: 0.16, exit: 0.07 };
 /** Гистерезис: түвшинд орох ба гарах оноо ялгаатай — дэлгэц анивчихгүй. */
 /** 5 минутад ийм олон эвшээвэл оноо хүлээлгүй анхааруулна. */
 const YAWN_WARNING = 3;
-const ENTER = { warning: 40, critical: 70 };
+export const ENTER = { warning: 40, critical: 70 };
 const EXIT = { warning: 30, critical: 55 };
 /**
  * Хяналтын үед нүүр харагдахгүй байсан хугацаа. Толгой бүрэн унжих, нүүрээ

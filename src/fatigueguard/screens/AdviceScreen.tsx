@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { needsAiAdvice } from "@/features/fatigue/advice-gate";
 import { colors } from "../theme";
 import type { SessionSummary } from "../types";
 
@@ -23,11 +24,14 @@ export function AdviceScreen({
   sessionClientId: string | null;
   onBack: () => void;
 }) {
+  // Ядаргааны шинж илрээгүй аялалд AI дуудахгүй — апп өөрөө мессеж харуулна.
+  const lowRisk = !needsAiAdvice(summary);
   const [advice, setAdvice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!lowRisk);
 
   useEffect(() => {
+    if (lowRisk) return;
     let isMounted = true;
 
     const loadAdvice = async () => {
@@ -54,6 +58,9 @@ export function AdviceScreen({
             prolongedEyeClosureCount: summary.longClosureCount ?? 0,
             headNodCount: summary.quickNodCount ?? 0,
             perclos: summary.perclos ?? null,
+            // Сервер эрсдэлийн түвшинг тогтооход хэрэглэнэ. Хуучин сервер тоохгүй.
+            warningCount: summary.warningCount,
+            criticalCount: summary.criticalCount,
           }),
         });
 
@@ -92,7 +99,7 @@ export function AdviceScreen({
     return () => {
       isMounted = false;
     };
-  }, [summary, sessionClientId]);
+  }, [summary, sessionClientId, lowRisk]);
 
   return (
     <View style={styles.screen}>
@@ -109,6 +116,11 @@ export function AdviceScreen({
           <Text style={styles.metricLine}>
             Max score: {summary.maxScore} · Avg score: {summary.avgScore}
           </Text>
+          {/* Оноо бага ч дохио гарсан бол AI зөвлөгөө яагаад гарсныг харуулна. */}
+          <Text style={styles.metricLine}>
+            Анхааруулга: {summary.warningCount} · Аюултай дохио:{" "}
+            {summary.criticalCount}
+          </Text>
           <Text style={styles.metricLine}>
             Duration: {Math.floor(summary.durationSeconds / 60)}m{" "}
             {summary.durationSeconds % 60}s
@@ -123,6 +135,20 @@ export function AdviceScreen({
         ) : null}
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {lowRisk ? (
+          <View style={styles.adviceBox}>
+            <Text style={styles.adviceTitle}>Ядаргааны шинж илрээгүй</Text>
+            <Text style={styles.adviceText}>
+              Энэ аялалд анхааруулга гараагүй, ядаргааны оноо хэвийн байлаа
+              (дээд тал нь {summary.maxScore}/100). Урт замд 2 цаг тутам 15
+              минут амарч, шөнө хангалттай унтаарай.
+            </Text>
+            <Text style={styles.note}>
+              AI зөвлөгөө ядаргааны шинж илэрсэн аялалд гарна.
+            </Text>
+          </View>
+        ) : null}
 
         {advice ? (
           <View style={styles.adviceBox}>
@@ -228,5 +254,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     lineHeight: 24,
+  },
+  note: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 10,
   },
 });
