@@ -25,6 +25,7 @@ interface VectorizeBinding {
       metadata?: Record<string, unknown>;
     }>,
   ): Promise<unknown>;
+  deleteByIds(ids: string[]): Promise<unknown>;
 }
 
 export interface Env {
@@ -34,6 +35,7 @@ export interface Env {
   VECTORIZE?: VectorizeBinding;
   GEMINI_API_KEY?: string;
   INGEST_API_KEY?: string;
+  APP_API_KEY?: string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -463,6 +465,31 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
     text = await object.text();
   }
 
+  // Ижил source-той хуучин баримт байвал эхлээд түүнийг хасна — эс тэгвээс
+  // шинэчилж дахин ingest хийх бүрд хуучин, шинэ chunk хамт давхцаж үлдэнэ.
+  const staleDocuments = await env.DB.prepare(
+    "SELECT id FROM rag_documents WHERE source = ?",
+  )
+    .bind(source)
+    .all<{ id: string }>();
+  for (const stale of staleDocuments.results) {
+    const staleChunks = await env.DB.prepare(
+      "SELECT vector_id FROM rag_chunks WHERE document_id = ?",
+    )
+      .bind(stale.id)
+      .all<{ vector_id: string }>();
+    const staleVectorIds = staleChunks.results.map((row) => row.vector_id);
+    if (staleVectorIds.length > 0 && env.VECTORIZE) {
+      await env.VECTORIZE.deleteByIds(staleVectorIds);
+    }
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM rag_chunks WHERE document_id = ?").bind(
+        stale.id,
+      ),
+      env.DB.prepare("DELETE FROM rag_documents WHERE id = ?").bind(stale.id),
+    ]);
+  }
+
   const documentId = crypto.randomUUID();
   await env.DB.prepare(
     "INSERT INTO rag_documents (id, title, source, file_key, category) VALUES (?, ?, ?, ?, ?)",
@@ -684,6 +711,23 @@ export default {
     try {
       if (url.pathname === "/api/health" && request.method === "GET")
         return response({ ok: true });
+
+      // /api/rag/ingest хамгаалдаг өөрийн (INGEST_API_KEY) шалгалттай тул энд
+      // давхар шаардахгүй. Бусад бүх endpoint энэ апп-ын нэгдсэн key-г шаардана —
+      // энэ нь тухайн жолоочийг мэдэгддэггүй, зөвхөн энэ манай апп мөн гэдгийг
+      // баталгаажуулна (mobile apps дотор орсон key нь bundle-с задалж авах
+      // боломжтой тул зөвхөн санамсаргүй/олон нийтийн хандалтаас хамгаална).
+      if (url.pathname !== "/api/rag/ingest") {
+        if (!env.APP_API_KEY)
+          throw new Error("APP_API_KEY is not configured; refusing all requests");
+        const authHeader = request.headers.get("authorization") ?? "";
+        const providedKey = authHeader.startsWith("Bearer ")
+          ? authHeader.slice("Bearer ".length)
+          : "";
+        if (providedKey !== env.APP_API_KEY)
+          return errorResponse("Unauthorized", 401);
+      }
+
       if (url.pathname === "/api/advice" && request.method === "POST")
         return await onAdviceRequest(request, env);
       if (url.pathname === "/api/sessions" && request.method === "POST")

@@ -112,9 +112,16 @@ export async function finalizeAbandonedSessions() {
 export async function getPendingSyncOperations(driverId = 1) {
     const store = readStore();
     const completed = new Set(store.sessions.filter((session) => session.status === 'completed').map((session) => session.client_id));
+    // native.ts-тэй адил хуучнаас шинэ рүү эрэмбэлнэ: эс тэгвээс шинэ session
+    // жагсаалтын эхэнд ордог (unshift) тул удаан хугацаанд sync тасалдвал хамгийн
+    // хуучин, sync хийгдээгүй аялал үүрд хойшлогдох эрсдэлтэй.
     return {
-        sessions: store.sessions.filter((session) => session.driver_id === driverId && session.status === 'completed' && session.synced_at === null),
-        events: store.events.filter((event) => event.driver_id === driverId && event.synced_at === null && completed.has(event.session_client_id)),
+        sessions: store.sessions
+            .filter((session) => session.driver_id === driverId && session.status === 'completed' && session.synced_at === null)
+            .sort((a, b) => a.started_at.localeCompare(b.started_at)),
+        events: store.events
+            .filter((event) => event.driver_id === driverId && event.synced_at === null && completed.has(event.session_client_id))
+            .sort((a, b) => a.event_at.localeCompare(b.event_at)),
     };
 }
 
