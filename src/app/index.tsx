@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AppState, BackHandler, StatusBar, StyleSheet, View } from "react-native";
+import { AppState, BackHandler, StatusBar, StyleSheet, View, useColorScheme } from "react-native";
 import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -27,6 +27,7 @@ import {
   finalizeAbandonedSessions,
 } from "@/data/local-db";
 import { syncPendingData } from "@/data/sync";
+import { themePreference } from "@/features/theme/theme-preference";
 
 const emptySummary: SessionSummary = {
   durationSeconds: 0,
@@ -64,6 +65,7 @@ async function saveFatigueEvents(
 }
 
 export default function GuardApp() {
+  const colorScheme = useColorScheme();
   const [route, setRoute] = useState<Route>({ kind: "tabs", tab: "home" });
   const [summary, setSummary] = useState<SessionSummary>(emptySummary);
   // Калибрациас буцаж ирэхэд камерын дэлгэц дахин автоматаар урагшилбал
@@ -90,6 +92,7 @@ export default function GuardApp() {
   );
 
   useEffect(() => {
+    void themePreference.initialize();
     // Апп жолоодлогын дундуур хаагдсан бол «хяналт зогслоо» сануулга үлдсэн байж
     // болно. Одоо жолоодлого явагдаагүй тул цуцална.
     void cancelLeftoverStoppedReminders().catch((error) =>
@@ -241,7 +244,7 @@ export default function GuardApp() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle={colorScheme === "light" ? "dark-content" : "light-content"} backgroundColor={colors.background} />
       <View style={styles.app}>
         {keepAwake ? <KeepScreenAwake /> : null}
         {route.kind === "flow" && route.screen === "driving" ? (

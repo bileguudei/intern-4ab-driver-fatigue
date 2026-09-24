@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { getLocalSessionEvents, type LocalFatigueEvent, type LocalSession } from '@/data/local-db';
 import { buildTripDetail, formatTripOffset, readTripSpeed } from '@/features/fatigue/trip-detail';
 import { useAndroidBack } from '@/hooks/use-android-back';
@@ -107,7 +107,7 @@ export function TripDetailScreen({ session, onBack }: { session: LocalSession; o
   );
 }
 
-function Kpi({ label, value, color }: { label: string; value: string; color: string }) {
+function Kpi({ label, value, color }: { label: string; value: string; color: ColorValue }) {
   return (
     <Card style={styles.kpi}>
       <Text style={[styles.kpiValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
@@ -116,7 +116,7 @@ function Kpi({ label, value, color }: { label: string; value: string; color: str
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+function Legend({ color, label }: { color: ColorValue; label: string }) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
