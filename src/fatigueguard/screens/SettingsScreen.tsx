@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View, type ColorValue } from 'react-native';
 import { getLocalSessions } from '@/data/local-db';
 import { syncPendingData } from '@/data/sync';
 import {
@@ -17,6 +17,7 @@ import {
   permissionToggleHint,
 } from '@/features/fatigue/permission-toggle';
 import { alertSettings, useAlertSettings } from '@/features/fatigue/use-alert-settings';
+import { themePreference, useThemePreference } from '@/features/theme/theme-preference';
 import { Card, Header, SectionTitle } from '../components/ui';
 import { colors } from '../theme';
 
@@ -44,6 +45,7 @@ const readSyncInfo = async (): Promise<SyncInfo> => {
 
 export function SettingsScreen() {
   const settings = useAlertSettings();
+  const selectedTheme = useThemePreference();
   const [camera, setCamera] = useState<Permission | null>(null);
   const [notifications, setNotifications] = useState<Permission | null>(null);
   const [location, setLocation] = useState<Permission | null>(null);
@@ -117,6 +119,15 @@ export function SettingsScreen() {
     <View style={styles.screen}>
       <Header title="Тохиргоо" />
       <ScrollView contentContainerStyle={styles.content}>
+        <SectionTitle>Харагдах байдал</SectionTitle>
+        <Toggle
+          icon="☾"
+          title="Dark mode"
+          subtitle={selectedTheme === 'dark' ? 'Dark mode асаалттай' : 'Light mode асаалттай'}
+          value={selectedTheme === 'dark'}
+          onChange={(enabled) => themePreference.update(enabled ? 'dark' : 'light')}
+        />
+
         <SectionTitle>Дохио & сэрэмжлүүлэг</SectionTitle>
         <Toggle icon="◖" title="Дуут сэрэмжлүүлэг" subtitle="Анхааруулгын үед дуу гаргана. Аюултай үед үргэлж дуугарна." value={settings.sound} onChange={(sound) => alertSettings.update({ sound })} />
         <Toggle icon="≈" title="Чичиргээ" subtitle="Анхааруулгын үед утас чичирнэ. Аюултай үед үргэлж чичирнэ." value={settings.vibration} onChange={(vibration) => alertSettings.update({ vibration })} />
@@ -213,7 +224,7 @@ function StatusRow({ icon, title, subtitle, status }: {
   icon: string;
   title: string;
   subtitle: string;
-  status: { label: string; color: string; onPress: (() => unknown) | undefined };
+  status: { label: string; color: ColorValue; onPress: (() => unknown) | undefined };
 }) {
   const onPress = status.onPress;
   return (
