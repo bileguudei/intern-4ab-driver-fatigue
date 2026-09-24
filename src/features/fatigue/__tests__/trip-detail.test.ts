@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { LocalFatigueEvent, LocalSession } from '@/data/local-db';
 
-import { buildTripDetail, formatTripOffset, readEventSpeed } from '../trip-detail';
+import { buildTripDetail, formatTripOffset, readEventSpeed, readTripSpeed } from '../trip-detail';
 
 const session = (overrides: Partial<LocalSession> = {}): LocalSession => ({
   client_id: 'session-1',
@@ -16,6 +16,9 @@ const session = (overrides: Partial<LocalSession> = {}): LocalSession => ({
   revision: 1,
   synced_at: null,
   avg_score: 31,
+  distance_km: null,
+  avg_speed_kmh: null,
+  max_speed_kmh: null,
   ...overrides,
 });
 
@@ -68,6 +71,20 @@ describe('readEventSpeed', () => {
     expect(readEventSpeed('{bad')).toBeNull();
     expect(readEventSpeed(JSON.stringify({ speedKmh: 'fast' }))).toBeNull();
     expect(readEventSpeed(JSON.stringify({ speedKmh: 0 }))).toBe(0);
+  });
+});
+
+describe('readTripSpeed', () => {
+  it('хурд хэмжээгүй аялалд null', () => {
+    expect(readTripSpeed(session())).toBeNull();
+  });
+
+  it('GPS-ээр хэмжсэн зай, хурдыг буцаана', () => {
+    expect(readTripSpeed(session({ distance_km: 18.4, avg_speed_kmh: 46, max_speed_kmh: 88 }))).toEqual({
+      distanceKm: 18.4,
+      avgSpeedKmh: 46,
+      maxSpeedKmh: 88,
+    });
   });
 });
 

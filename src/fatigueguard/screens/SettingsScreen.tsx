@@ -1,5 +1,6 @@
 import { type AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import Constants from 'expo-constants';
+import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -10,11 +11,15 @@ import {
   requestComputerVisionCameraPermission,
 } from '@/features/computer-vision';
 import { clampVolume, MAX_VOLUME, MIN_VOLUME, VOLUME_STEP } from '@/features/fatigue/alert-settings';
+import {
+  type PermissionState as Permission,
+  permissionToggleAction,
+  permissionToggleHint,
+} from '@/features/fatigue/permission-toggle';
 import { alertSettings, useAlertSettings } from '@/features/fatigue/use-alert-settings';
 import { Card, Header, SectionTitle } from '../components/ui';
 import { colors } from '../theme';
 
-type Permission = Readonly<{ granted: boolean; canAsk: boolean }>;
 type SyncInfo = Readonly<{ total: number; pending: number }>;
 
 const readCameraPermission = async (): Promise<Permission> => {
@@ -27,23 +32,21 @@ const readNotificationPermission = async (): Promise<Permission> => {
   return { granted: permission.granted, canAsk: permission.canAskAgain };
 };
 
+const readLocationPermission = async (): Promise<Permission> => {
+  const permission = await Location.getForegroundPermissionsAsync();
+  return { granted: permission.granted, canAsk: permission.canAskAgain };
+};
+
 const readSyncInfo = async (): Promise<SyncInfo> => {
   const completed = (await getLocalSessions()).filter((session) => session.status === 'completed');
   return { total: completed.length, pending: completed.filter((session) => !session.synced_at).length };
-};
-
-/** Зөвшөөрөл асууж болохгүй болсон бол зөвхөн утасны тохиргооноос нээнэ. */
-const permissionStatus = (permission: Permission | null, request: () => Promise<unknown>) => {
-  if (permission === null) return { label: '…', color: colors.textMuted, onPress: undefined };
-  if (permission.granted) return { label: 'Зөвшөөрсөн', color: colors.normal, onPress: undefined };
-  if (permission.canAsk) return { label: 'Зөвшөөрөх ›', color: colors.warning, onPress: request };
-  return { label: 'Хаалттай ›', color: colors.critical, onPress: () => Linking.openSettings() };
 };
 
 export function SettingsScreen() {
   const settings = useAlertSettings();
   const [camera, setCamera] = useState<Permission | null>(null);
   const [notifications, setNotifications] = useState<Permission | null>(null);
+  const [location, setLocation] = useState<Permission | null>(null);
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'failed'>('idle');
   const preview = useRef<AudioPlayer | null>(null);
@@ -51,6 +54,7 @@ export function SettingsScreen() {
   const refresh = useCallback(() => {
     void readCameraPermission().then(setCamera).catch((error) => console.warn('Unable to read camera permission:', error));
     void readNotificationPermission().then(setNotifications).catch((error) => console.warn('Unable to read notification permission:', error));
+    void readLocationPermission().then(setLocation).catch((error) => console.warn('Unable to read location permission:', error));
     void readSyncInfo().then(setSyncInfo).catch((error) => console.warn('Unable to read trips:', error));
   }, []);
 
@@ -97,8 +101,6 @@ export function SettingsScreen() {
     setSyncInfo(await readSyncInfo().catch(() => syncInfo));
   };
 
-  const cameraStatus = permissionStatus(camera, () => requestComputerVisionCameraPermission().then(refresh));
-  const notificationStatus = permissionStatus(notifications, () => Notifications.requestPermissionsAsync().then(refresh));
   const canSync = syncInfo !== null && syncInfo.pending > 0 && syncState !== 'syncing';
   const syncSubtitle =
     syncState === 'syncing'
@@ -132,8 +134,9 @@ export function SettingsScreen() {
         </Card>
 
         <SectionTitle>Зөвшөөрөл</SectionTitle>
-        <StatusRow icon="◉" title="Камер" subtitle="Нүд, толгойн хөдөлгөөнийг хянахад шаардлагатай" status={cameraStatus} />
-        <StatusRow icon="✉" title="Мэдэгдэл" subtitle="Апп ард гарахад хяналт зогссоныг сануулна" status={notificationStatus} />
+        <PermissionToggle icon="◉" title="Камер" subtitle="Нүд, толгойн хөдөлгөөнийг хянахад шаардлагатай" permission={camera} request={() => requestComputerVisionCameraPermission().then(refresh)} />
+        <PermissionToggle icon="✉" title="Мэдэгдэл" subtitle="Апп ард гарахад хяналт зогссоныг сануулна" permission={notifications} request={() => Notifications.requestPermissionsAsync().then(refresh)} />
+        <PermissionToggle icon="◎" title="Байршил" subtitle="Хурд, явсан зайг хэмжинэ" permission={location} request={() => Location.requestForegroundPermissionsAsync().then(refresh)} />
 
         <SectionTitle>Өгөгдөл</SectionTitle>
         <StatusRow
@@ -172,6 +175,40 @@ function VolumeButton({ label, disabled, onPress }: { label: string; disabled: b
   );
 }
 
+/**
+ * Зөвшөөрлийн switch. Бодит зөвшөөрлийг харуулдаг тул дарахад шууд солигдохгүй:
+ * асууж болох бол асууна, бусад үед утасны тохиргоо нээгдэж, буцаж ирэхэд шинэчлэгдэнэ.
+ */
+function PermissionToggle({ icon, title, subtitle, permission, request }: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  permission: Permission | null;
+  request: () => Promise<unknown>;
+}) {
+  const onChange = (turnOn: boolean) => {
+    if (permission === null) return;
+    const action = permissionToggleAction(permission, turnOn);
+    if (action === 'request') void request();
+    if (action === 'open-settings') void Linking.openSettings();
+  };
+  return (
+    <Card style={styles.item}>
+      <View style={styles.row}>
+        <Text style={styles.icon}>{icon}</Text>
+        <View style={styles.copy}>
+          <Text style={styles.itemTitle}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Text style={[styles.hint, { color: permission?.granted ? colors.normal : colors.warning }]}>
+            {permission === null ? 'Шалгаж байна…' : permissionToggleHint(permission)}
+          </Text>
+        </View>
+        <Switch value={permission?.granted ?? false} disabled={permission === null} onValueChange={onChange} trackColor={{ false: colors.borderBright, true: colors.primaryDark }} thumbColor={permission?.granted ? colors.primary : colors.textMuted} />
+      </View>
+    </Card>
+  );
+}
+
 function StatusRow({ icon, title, subtitle, status }: {
   icon: string;
   title: string;
@@ -192,4 +229,4 @@ function StatusRow({ icon, title, subtitle, status }: {
   );
 }
 
-const styles = StyleSheet.create({ screen: { flex: 1 }, content: { paddingHorizontal: 20, paddingBottom: 100 }, item: { marginBottom: 10, paddingVertical: 13 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12 }, icon: { width: 32, color: colors.primary, fontSize: 23, textAlign: 'center' }, copy: { flex: 1 }, itemTitle: { color: colors.text, fontSize: 15, fontWeight: '700' }, subtitle: { color: colors.textMuted, fontSize: 11, marginTop: 3 }, value: { color: colors.textMuted, fontSize: 14 }, status: { fontSize: 13, fontWeight: '700' }, disabled: { opacity: 0.45 }, volumeButton: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' }, volumeText: { color: colors.text, fontSize: 20 }, volumeTrack: { height: 4, backgroundColor: colors.borderBright, borderRadius: 2, marginTop: 14, overflow: 'hidden' }, volumeFill: { height: '100%', backgroundColor: colors.primary }, bottomSpace: { height: 20 } });
+const styles = StyleSheet.create({ screen: { flex: 1 }, content: { paddingHorizontal: 20, paddingBottom: 100 }, item: { marginBottom: 10, paddingVertical: 13 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12 }, icon: { width: 32, color: colors.primary, fontSize: 23, textAlign: 'center' }, copy: { flex: 1 }, itemTitle: { color: colors.text, fontSize: 15, fontWeight: '700' }, subtitle: { color: colors.textMuted, fontSize: 11, marginTop: 3 }, value: { color: colors.textMuted, fontSize: 14 }, status: { fontSize: 13, fontWeight: '700' }, hint: { fontSize: 11, fontWeight: '600', marginTop: 4 }, disabled: { opacity: 0.45 }, volumeButton: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' }, volumeText: { color: colors.text, fontSize: 20 }, volumeTrack: { height: 4, backgroundColor: colors.borderBright, borderRadius: 2, marginTop: 14, overflow: 'hidden' }, volumeFill: { height: '100%', backgroundColor: colors.primary }, bottomSpace: { height: 20 } });

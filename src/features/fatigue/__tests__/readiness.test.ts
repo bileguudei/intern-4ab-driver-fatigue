@@ -21,4 +21,15 @@ describe('assessReadiness', () => {
   it('мэдэгдэл хаалттай бол анхааруулж, тохиргоо руу явуулна', () => {
     expect(assessReadiness('granted', 'denied')).toMatchObject({ level: 'attention', title: 'Мэдэгдэл хаалттай', openSettings: true });
   });
+
+  it('байршил хаалттай бол хурд хэмжигдэхгүй гэж анхааруулна', () => {
+    expect(assessReadiness('granted', 'granted', 'denied')).toMatchObject({ level: 'attention', title: 'Байршил хаалттай', openSettings: true });
+    // Байршлыг анхны жолоодлогод асуух тул асуугаагүй нь асуудал биш.
+    expect(assessReadiness('granted', 'granted', 'undetermined').level).toBe('ready');
+  });
+
+  it('камер, мэдэгдлийн асуудлыг байршлаас түрүүлж харуулна', () => {
+    expect(assessReadiness('denied', 'granted', 'denied').title).toBe('Камер хаалттай');
+    expect(assessReadiness('granted', 'denied', 'denied').title).toBe('Мэдэгдэл хаалттай');
+  });
 });

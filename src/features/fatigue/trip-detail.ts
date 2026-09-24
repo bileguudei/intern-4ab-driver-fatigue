@@ -60,6 +60,18 @@ export function buildTripDetail(session: LocalSession, events: readonly LocalFat
   return { startedAt, endedAt, durationMs, markers, firstAlertOffsetMs: markers[0]?.offsetMs ?? null };
 }
 
+export type TripSpeed = Readonly<{
+  distanceKm: number;
+  avgSpeedKmh: number | null;
+  maxSpeedKmh: number | null;
+}>;
+
+/** GPS-ээр хэмжсэн аяллын зай, хурд. Хурд хэмжээгүй (байршлын зөвшөөрөлгүй) аялалд null. */
+export function readTripSpeed(session: LocalSession): TripSpeed | null {
+  if (typeof session.distance_km !== 'number') return null;
+  return { distanceKm: session.distance_km, avgSpeedKmh: session.avg_speed_kmh, maxSpeedKmh: session.max_speed_kmh };
+}
+
 /** Аялал эхэлснээс хойшх хугацаа: «+12:34», цагаас давбал «+1:02:03». */
 export function formatTripOffset(ms: number): string {
   const totalSeconds = Math.floor(Math.max(0, ms) / 1000);

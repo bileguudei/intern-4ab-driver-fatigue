@@ -1,6 +1,7 @@
 import type { CameraPermissionStatus } from '@/features/computer-vision';
 
 export type NotificationPermission = 'granted' | 'denied' | 'undetermined';
+export type LocationPermission = 'granted' | 'denied' | 'undetermined';
 
 export type Readiness = Readonly<{
   level: 'ready' | 'attention' | 'blocked';
@@ -13,10 +14,15 @@ export type Readiness = Readonly<{
 /**
  * Нүүр дэлгэцийн «Систем бэлэн» картын төлөв. Хамгийн ноцтой асуудлыг эхэлж
  * харуулна: камергүй бол хяналт огт ажиллахгүй, мэдэгдэлгүй бол апп ард
- * гарахад сануулга ирэхгүй. Мэдэгдлийн зөвшөөрлийг анхны жолоодлогод асуудаг
- * тул асуугаагүй байхыг асуудал гэж үзэхгүй.
+ * гарахад сануулга ирэхгүй, байршилгүй бол хурд, зай хэмжигдэхгүй. Мэдэгдэл,
+ * байршлын зөвшөөрлийг анхны жолоодлогод асуудаг тул асуугаагүй байхыг асуудал
+ * гэж үзэхгүй.
  */
-export function assessReadiness(camera: CameraPermissionStatus, notifications: NotificationPermission): Readiness {
+export function assessReadiness(
+  camera: CameraPermissionStatus,
+  notifications: NotificationPermission,
+  location: LocationPermission = 'undetermined',
+): Readiness {
   if (camera === 'denied' || camera === 'restricted') {
     return { level: 'blocked', title: 'Камер хаалттай', message: 'Хяналт ажиллахгүй. Дарж тохиргооноос камерыг зөвшөөрнө үү.', openSettings: true };
   }
@@ -26,5 +32,8 @@ export function assessReadiness(camera: CameraPermissionStatus, notifications: N
   if (notifications === 'denied') {
     return { level: 'attention', title: 'Мэдэгдэл хаалттай', message: 'Апп ард гарахад сануулга ирэхгүй. Дарж тохиргооноос зөвшөөрнө үү.', openSettings: true };
   }
-  return { level: 'ready', title: 'Систем бэлэн', message: 'Камер, мэдэгдлийн зөвшөөрөл хэвийн байна', openSettings: false };
+  if (location === 'denied') {
+    return { level: 'attention', title: 'Байршил хаалттай', message: 'Хурд, зай хэмжигдэхгүй. Дарж тохиргооноос зөвшөөрнө үү.', openSettings: true };
+  }
+  return { level: 'ready', title: 'Систем бэлэн', message: 'Камер, мэдэгдэл, байршлын зөвшөөрөл хэвийн байна', openSettings: false };
 }

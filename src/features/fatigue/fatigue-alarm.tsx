@@ -76,12 +76,12 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
       },
     });
     // Тасралтгүй удаан жолоодоход завсарлага авахыг зөөлөн дуугаар сануулна.
+    // Анхааруулгын адил Тохиргооны дуу, чичиргээг дагана.
     // Critical дуугарч байвал давхардуулахгүй — Android-д чичиргээг нь тасалдаг.
     const onBreak = createBreakAlert(() => {
       if (criticalOn) return;
-      warning.seekTo(0);
-      warning.play();
-      Vibration.vibrate(400);
+      playWarningSound();
+      if (alertSettings.get().vibration) Vibration.vibrate(400);
     });
     const unsubscribe = engine.subscribe((state) => {
       onState(state);
