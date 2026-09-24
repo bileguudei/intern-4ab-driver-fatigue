@@ -4,6 +4,7 @@ import {
   createVectorMetadata,
   normalizeAdviceRequest,
   selectRelevantChunks,
+  toPlainText,
   type NormalizedAdviceRequest,
 } from "./rag";
 
@@ -682,11 +683,12 @@ async function buildAdviceResponse(data: NormalizedAdviceRequest, env: Env) {
       : "No directly relevant safety guidance was retrieved from the knowledge base for this session.";
 
   const systemPrompt =
-    "You are a driver-safety assistant. Base your answer only on the retrieved guidance and the current session facts. Never claim to diagnose a medical condition or certainty about the driver's health. Keep the advice practical, concise, and suitable for a mobile app. Mention key risk indicators only as observed facts. When relevant, recommend a rest break or stopping point. Do not invent sources or guidelines. Always respond in Mongolian (Cyrillic script), regardless of the language of the retrieved knowledge or session facts.";
+    "You are a driver-safety assistant. Base your answer only on the retrieved guidance and the current session facts. Never claim to diagnose a medical condition or certainty about the driver's health. Keep the advice practical, concise, and suitable for a mobile app. Mention key risk indicators only as observed facts. When relevant, recommend a rest break or stopping point. Do not invent sources or guidelines. Always respond in Mongolian (Cyrillic script), regardless of the language of the retrieved knowledge or session facts. Write plain text only: no Markdown, no asterisks (*), no bold, no headings (#). For lists, start each line with \"- \".";
   const userPrompt = `Session facts:\n- sessionId: ${data.sessionId ?? "unknown"}\n- fatigueScore: ${data.fatigueScore}\n- averageFatigueScore: ${data.averageFatigueScore ?? "n/a"}\n- maxFatigueScore: ${data.maxFatigueScore ?? "n/a"}\n- driveDurationMinutes: ${data.driveDurationMinutes ?? "n/a"}\n- prolongedEyeClosureCount: ${data.prolongedEyeClosureCount ?? "n/a"}\n- headNodCount: ${data.headNodCount ?? "n/a"}\n- perclos: ${data.perclos ?? "n/a"}\n\nRetrieved knowledge:\n${context}\n\nProvide brief safety guidance in Mongolian, explicitly separate observed fatigue indicators from recommendations, and keep the final answer under 200 words.`;
 
+  const generated = await generateAdviceText(env, systemPrompt, userPrompt);
   const advice =
-    (await generateAdviceText(env, systemPrompt, userPrompt)) ??
+    (generated && toPlainText(generated)) ||
     "Хадгалагдсан мэдлэгийн сангаас зөвлөгөө үүсгэж чадсангүй.";
   const logId = crypto.randomUUID();
   await env.DB.prepare(

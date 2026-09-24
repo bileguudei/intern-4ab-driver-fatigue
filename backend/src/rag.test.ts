@@ -7,6 +7,7 @@ import {
   createVectorMetadata,
   normalizeAdviceRequest,
   selectRelevantChunks,
+  toPlainText,
 } from "./rag";
 
 const makeDb = (ragRows: Array<Record<string, unknown>> = []) => ({
@@ -133,6 +134,16 @@ describe("RAG helpers", () => {
     const selected = selectRelevantChunks(matches, 0.5);
     expect(selected).toHaveLength(1);
     expect(selected[0].id).toBe("good");
+  });
+
+  it("strips Markdown so the app shows clean text", () => {
+    const markdown =
+      "## Зөвлөгөө\n**Ажиглагдсан үзүүлэлт:**\n* Ядаргааны оноо: **80**\n*   Хугацаа: 140 минут\n\n\n\n• Амраарай";
+
+    expect(toPlainText(markdown)).toBe(
+      "Зөвлөгөө\nАжиглагдсан үзүүлэлт:\n- Ядаргааны оноо: 80\n- Хугацаа: 140 минут\n\n- Амраарай",
+    );
+    expect(toPlainText("- Энгийн мөр")).toBe("- Энгийн мөр");
   });
 
   it("creates vector metadata with source traceability", () => {
