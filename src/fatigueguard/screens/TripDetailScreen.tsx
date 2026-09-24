@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getLocalSessionEvents, type LocalFatigueEvent, type LocalSession } from '@/data/local-db';
-import { buildTripDetail, formatTripOffset } from '@/features/fatigue/trip-detail';
+import { buildTripDetail, formatTripOffset, readTripSpeed } from '@/features/fatigue/trip-detail';
 import { useAndroidBack } from '@/hooks/use-android-back';
 import { Card, Header, SectionTitle } from '../components/ui';
 import { colors } from '../theme';
@@ -32,6 +32,7 @@ export function TripDetailScreen({ session, onBack }: { session: LocalSession; o
 
   const detail = useMemo(() => buildTripDetail(session, events ?? []), [session, events]);
   const maxScore = Math.round(session.fatigue_score);
+  const speed = readTripSpeed(session);
   const endLabel = detail.endedAt ? clock(detail.endedAt) : 'үргэлжилж байна';
 
   return (
@@ -47,6 +48,8 @@ export function TripDetailScreen({ session, onBack }: { session: LocalSession; o
           <Kpi label="Дээд оноо" value={String(maxScore)} color={scoreColor(maxScore)} />
           <Kpi label="Дундаж оноо" value={typeof session.avg_score === 'number' ? String(Math.round(session.avg_score)) : '—'} color={colors.text} />
           <Kpi label="Анхааруулга · Аюултай" value={`${session.warning_count} · ${session.critical_event_count}`} color={session.critical_event_count > 0 ? colors.critical : colors.text} />
+          {speed ? <Kpi label="Явсан зай" value={`${speed.distanceKm} км`} color={colors.primary} /> : null}
+          {speed ? <Kpi label="Дундаж / дээд хурд, км/ц" value={`${speed.avgSpeedKmh ?? '—'} / ${speed.maxSpeedKmh ?? '—'}`} color={colors.primary} /> : null}
         </View>
 
         <SectionTitle>АЯЛЛЫН ШУГАМ</SectionTitle>
