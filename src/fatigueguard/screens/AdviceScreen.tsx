@@ -12,6 +12,7 @@ import type { SessionSummary } from "../types";
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
+const APP_API_KEY = process.env.EXPO_PUBLIC_APP_API_KEY ?? "";
 
 export function AdviceScreen({
   summary,
@@ -38,6 +39,7 @@ export function AdviceScreen({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${APP_API_KEY}`,
           },
           body: JSON.stringify({
             sessionId: sessionClientId,

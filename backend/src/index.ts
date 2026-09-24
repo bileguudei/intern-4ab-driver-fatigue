@@ -35,6 +35,7 @@ export interface Env {
   VECTORIZE?: VectorizeBinding;
   GEMINI_API_KEY?: string;
   INGEST_API_KEY?: string;
+  APP_API_KEY?: string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -710,6 +711,23 @@ export default {
     try {
       if (url.pathname === "/api/health" && request.method === "GET")
         return response({ ok: true });
+
+      // /api/rag/ingest хамгаалдаг өөрийн (INGEST_API_KEY) шалгалттай тул энд
+      // давхар шаардахгүй. Бусад бүх endpoint энэ апп-ын нэгдсэн key-г шаардана —
+      // энэ нь тухайн жолоочийг мэдэгддэггүй, зөвхөн энэ манай апп мөн гэдгийг
+      // баталгаажуулна (mobile apps дотор орсон key нь bundle-с задалж авах
+      // боломжтой тул зөвхөн санамсаргүй/олон нийтийн хандалтаас хамгаална).
+      if (url.pathname !== "/api/rag/ingest") {
+        if (!env.APP_API_KEY)
+          throw new Error("APP_API_KEY is not configured; refusing all requests");
+        const authHeader = request.headers.get("authorization") ?? "";
+        const providedKey = authHeader.startsWith("Bearer ")
+          ? authHeader.slice("Bearer ".length)
+          : "";
+        if (providedKey !== env.APP_API_KEY)
+          return errorResponse("Unauthorized", 401);
+      }
+
       if (url.pathname === "/api/advice" && request.method === "POST")
         return await onAdviceRequest(request, env);
       if (url.pathname === "/api/sessions" && request.method === "POST")
