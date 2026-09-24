@@ -1,5 +1,6 @@
 import { type AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import Constants from 'expo-constants';
+import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -27,6 +28,11 @@ const readNotificationPermission = async (): Promise<Permission> => {
   return { granted: permission.granted, canAsk: permission.canAskAgain };
 };
 
+const readLocationPermission = async (): Promise<Permission> => {
+  const permission = await Location.getForegroundPermissionsAsync();
+  return { granted: permission.granted, canAsk: permission.canAskAgain };
+};
+
 const readSyncInfo = async (): Promise<SyncInfo> => {
   const completed = (await getLocalSessions()).filter((session) => session.status === 'completed');
   return { total: completed.length, pending: completed.filter((session) => !session.synced_at).length };
@@ -44,6 +50,7 @@ export function SettingsScreen() {
   const settings = useAlertSettings();
   const [camera, setCamera] = useState<Permission | null>(null);
   const [notifications, setNotifications] = useState<Permission | null>(null);
+  const [location, setLocation] = useState<Permission | null>(null);
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'failed'>('idle');
   const preview = useRef<AudioPlayer | null>(null);
@@ -51,6 +58,7 @@ export function SettingsScreen() {
   const refresh = useCallback(() => {
     void readCameraPermission().then(setCamera).catch((error) => console.warn('Unable to read camera permission:', error));
     void readNotificationPermission().then(setNotifications).catch((error) => console.warn('Unable to read notification permission:', error));
+    void readLocationPermission().then(setLocation).catch((error) => console.warn('Unable to read location permission:', error));
     void readSyncInfo().then(setSyncInfo).catch((error) => console.warn('Unable to read trips:', error));
   }, []);
 
@@ -99,6 +107,7 @@ export function SettingsScreen() {
 
   const cameraStatus = permissionStatus(camera, () => requestComputerVisionCameraPermission().then(refresh));
   const notificationStatus = permissionStatus(notifications, () => Notifications.requestPermissionsAsync().then(refresh));
+  const locationStatus = permissionStatus(location, () => Location.requestForegroundPermissionsAsync().then(refresh));
   const canSync = syncInfo !== null && syncInfo.pending > 0 && syncState !== 'syncing';
   const syncSubtitle =
     syncState === 'syncing'
@@ -134,6 +143,7 @@ export function SettingsScreen() {
         <SectionTitle>Зөвшөөрөл</SectionTitle>
         <StatusRow icon="◉" title="Камер" subtitle="Нүд, толгойн хөдөлгөөнийг хянахад шаардлагатай" status={cameraStatus} />
         <StatusRow icon="✉" title="Мэдэгдэл" subtitle="Апп ард гарахад хяналт зогссоныг сануулна" status={notificationStatus} />
+        <StatusRow icon="◎" title="Байршил" subtitle="Хурд, явсан зайг хэмжинэ" status={locationStatus} />
 
         <SectionTitle>Өгөгдөл</SectionTitle>
         <StatusRow

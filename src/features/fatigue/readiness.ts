@@ -35,5 +35,5 @@ export function assessReadiness(
   if (location === 'denied') {
     return { level: 'attention', title: 'Байршил хаалттай', message: 'Хурд, зай хэмжигдэхгүй. Дарж тохиргооноос зөвшөөрнө үү.', openSettings: true };
   }
-  return { level: 'ready', title: 'Систем бэлэн', message: 'Камер, мэдэгдлийн зөвшөөрөл хэвийн байна', openSettings: false };
+  return { level: 'ready', title: 'Систем бэлэн', message: 'Камер, мэдэгдэл, байршлын зөвшөөрөл хэвийн байна', openSettings: false };
 }
