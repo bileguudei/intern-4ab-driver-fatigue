@@ -141,6 +141,20 @@ export function createVectorMetadata(input: {
   };
 }
 
+/**
+ * Апп зөвлөгөөг энгийн Text-ээр харуулдаг тул Markdown тэмдэг (**, *, #)
+ * жолоочид шууд харагдана. Загвар prompt-ыг дагаагүй үед ч цэвэрлэнэ.
+ */
+export function toPlainText(text: string): string {
+  return text
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^(\s*)[*•]\s+/gm, "$1- ")
+    .replace(/\*/g, "")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function selectRelevantChunks(
   matches: Array<{
     id?: string;
