@@ -5,6 +5,10 @@ import type { SessionSummary } from "../types";
 
 const duration = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+const orDash = (value: number | null | undefined) =>
+  typeof value === "number" ? String(value) : "—";
+/** Удаан хурдтай үеийн богино зайг хураангуйд гаргахгүй. */
+const MIN_BLIND_DISTANCE_M = 5;
 
 export function SessionSummaryScreen({
   data,
@@ -16,6 +20,9 @@ export function SessionSummaryScreen({
   onAdvice: () => void;
 }) {
   const safety = data.criticalCount === 0 ? "Сайн" : "Анхаарах";
+  // Хурд огт хэмжээгүй (байршлын зөвшөөрөлгүй) бол зайг "—" гэж харуулна.
+  const hasSpeed = typeof data.avgSpeedKmh === "number";
+  const blindDistance = data.maxBlindDistanceM ?? 0;
 
   return (
     <View style={styles.screen}>
@@ -50,6 +57,16 @@ export function SessionSummaryScreen({
             value={safety}
             color={safety === "Сайн" ? colors.normal : colors.warning}
           />
+          <Kpi
+            label="Явсан зай"
+            value={hasSpeed ? `${data.distanceKm ?? 0} км` : "—"}
+            color={colors.primary}
+          />
+          <Kpi
+            label="Дундаж / дээд хурд, км/ц"
+            value={`${orDash(data.avgSpeedKmh)} / ${orDash(data.maxSpeedKmh)}`}
+            color={colors.primary}
+          />
         </View>
 
         <SectionTitle>ҮЙЛ ЯВДЛЫН ТҮҮХ</SectionTitle>
@@ -71,6 +88,13 @@ export function SessionSummaryScreen({
               color={colors.critical}
               time="Сессийн үед"
               title={`Аюултай төлөв · ${data.criticalCount} удаа`}
+            />
+          ) : null}
+          {blindDistance >= MIN_BLIND_DISTANCE_M ? (
+            <Timeline
+              color={colors.critical}
+              time="Хамгийн урт анилт"
+              title={`Нүд аньсан үед ${blindDistance} м явсан`}
             />
           ) : null}
           <Timeline

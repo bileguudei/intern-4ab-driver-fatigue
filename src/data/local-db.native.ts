@@ -13,7 +13,13 @@ export type LocalSession = {
     synced_at: string | null;
     /** Дундаж оноо. Энэ багана нэмэгдэхээс өмнөх сессүүдэд null. */
     avg_score: number | null;
+    /** GPS-ээр тооцсон зай, хурд. Хурд хэмжээгүй сессэд null. */
+    distance_km: number | null;
+    avg_speed_kmh: number | null;
+    max_speed_kmh: number | null;
 };
+
+const SESSION_COLUMNS = 'client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at, avg_score, distance_km, avg_speed_kmh, max_speed_kmh';
 
 export type LocalFatigueEvent = {
     client_id: string;
@@ -77,18 +83,30 @@ async function openDatabase() {
 }
 
 /**
- * Суулгасан апп-ын өгөгдлийн санг `PRAGMA user_version`-оор нэг удаа шинэчилнэ.
+ * Суулгасан апп-ын өгөгдлийн санг `PRAGMA user_version`-оор алхам алхмаар шинэчилнэ.
  * 1: `avg_score` багана нэмнэ. Сервер өмнө нь ядаргааны явдлыг хадгалалгүй
  *    амжилттай гэж буцаадаг байсан тул бүх явдлыг дахин илгээхээр тэмдэглэнэ.
+ * 2: зай, дундаж болон дээд хурдны баганууд нэмнэ.
  */
 async function migrate(database: SQLite.SQLiteDatabase) {
-    const version = (await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version ?? 0;
-    if (version >= 1) return;
-    const columns = await database.getAllAsync<{ name: string }>('PRAGMA table_info(driving_sessions)');
-    if (!columns.some((column) => column.name === 'avg_score')) {
-        await database.execAsync('ALTER TABLE driving_sessions ADD COLUMN avg_score REAL');
+    let version = (await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version ?? 0;
+    const addSessionColumn = async (name: string) => {
+        const columns = await database.getAllAsync<{ name: string }>('PRAGMA table_info(driving_sessions)');
+        if (!columns.some((column) => column.name === name)) {
+            await database.execAsync(`ALTER TABLE driving_sessions ADD COLUMN ${name} REAL`);
+        }
+    };
+    if (version < 1) {
+        await addSessionColumn('avg_score');
+        await database.execAsync('UPDATE fatigue_events SET synced_at = NULL; PRAGMA user_version = 1;');
+        version = 1;
     }
-    await database.execAsync('UPDATE fatigue_events SET synced_at = NULL; PRAGMA user_version = 1;');
+    if (version < 2) {
+        await addSessionColumn('distance_km');
+        await addSessionColumn('avg_speed_kmh');
+        await addSessionColumn('max_speed_kmh');
+        await database.execAsync('PRAGMA user_version = 2;');
+    }
 }
 
 export function getLocalDatabase() {
@@ -111,11 +129,12 @@ export async function createLocalSession(driverId = 1) {
     return { clientId, driverId, startedAt };
 }
 
-export async function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number }) {
+export async function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number; distanceKm?: number | null; avgSpeedKmh?: number | null; maxSpeedKmh?: number | null }) {
     const database = await getLocalDatabase();
     await database.runAsync(
         `UPDATE driving_sessions
      SET ended_at = ?, fatigue_score = ?, avg_score = ?, warning_count = ?, critical_event_count = ?,
+         distance_km = ?, avg_speed_kmh = ?, max_speed_kmh = ?,
          status = 'completed', revision = revision + 1, synced_at = NULL,
          updated_at = CURRENT_TIMESTAMP
      WHERE client_id = ?`,
@@ -124,6 +143,9 @@ export async function completeLocalSession(clientId: string, summary: { endedAt:
         summary.avgScore,
         summary.warningCount,
         summary.criticalEventCount,
+        summary.distanceKm ?? null,
+        summary.avgSpeedKmh ?? null,
+        summary.maxSpeedKmh ?? null,
         clientId,
     );
 }
@@ -146,7 +168,7 @@ export async function addLocalFatigueEvent(event: Omit<LocalFatigueEvent, 'synce
 
 export async function getLocalSessions() {
     const database = await getLocalDatabase();
-    return database.getAllAsync<LocalSession>('SELECT client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at, avg_score FROM driving_sessions ORDER BY started_at DESC');
+    return database.getAllAsync<LocalSession>(`SELECT ${SESSION_COLUMNS} FROM driving_sessions ORDER BY started_at DESC`);
 }
 
 /** Нэг жолоодлогын явдлуудыг цагийн дарааллаар — Түүхийн дэлгэрэнгүйд. */
@@ -177,7 +199,7 @@ export async function finalizeAbandonedSessions() {
 
 export async function getPendingSyncOperations(driverId = 1) {
     const database = await getLocalDatabase();
-    const sessions = await database.getAllAsync<LocalSession>("SELECT client_id, driver_id, started_at, ended_at, fatigue_score, warning_count, critical_event_count, status, revision, synced_at, avg_score FROM driving_sessions WHERE synced_at IS NULL AND status = 'completed' ORDER BY started_at ASC");
+    const sessions = await database.getAllAsync<LocalSession>(`SELECT ${SESSION_COLUMNS} FROM driving_sessions WHERE synced_at IS NULL AND status = 'completed' ORDER BY started_at ASC`);
     // Сервер явдлыг сессээр нь холбодог тул зөвхөн дууссан сессийн явдлыг илгээнэ.
     const events = await database.getAllAsync<LocalFatigueEvent>(`SELECT e.client_id, e.session_client_id, e.driver_id, e.level, e.fatigue_score, e.event_at, e.metadata_json, e.synced_at
      FROM fatigue_events e JOIN driving_sessions s ON s.client_id = e.session_client_id

@@ -45,4 +45,18 @@ describe('nextLevel', () => {
   it('5 минутад 3 эвшээлт оноо хүлээлгүй warning өгнө', () => {
     expect(nextLevel('normal', 0, eyes(), head(), yawn({ yawns: 3 }))).toBe('warning');
   });
+
+  it('машин зогсож байхад зөвхөн удаан анилтад warning өгнө', () => {
+    const stopped = { stationary: true };
+    expect(nextLevel('normal', 90, eyes(), head({ droopMs: 3_000, downDeg: 30 }), yawn(), stopped)).toBe('normal');
+    expect(nextLevel('critical', 0, eyes(), head(), yawn(), { ...stopped, faceMissingMs: 5_000 })).toBe('normal');
+    expect(nextLevel('normal', 0, eyes({ closureMs: 1_500 }), head(), yawn(), stopped)).toBe('warning');
+  });
+
+  it('өндөр хурдад нүд аних, нүүр алга болох дохиог эрт өгнө', () => {
+    expect(nextLevel('normal', 0, eyes({ closureMs: 1_000 }), head(), yawn())).toBe('normal');
+    expect(nextLevel('normal', 0, eyes({ closureMs: 1_000 }), head(), yawn(), { highSpeed: true })).toBe('critical');
+    expect(nextLevel('normal', 0, eyes(), head(), yawn(), { faceMissingMs: 2_000 })).toBe('warning');
+    expect(nextLevel('normal', 0, eyes(), head(), yawn(), { faceMissingMs: 2_000, highSpeed: true })).toBe('critical');
+  });
 });

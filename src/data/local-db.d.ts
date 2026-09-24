@@ -11,6 +11,10 @@ export type LocalSession = {
     synced_at: string | null;
     /** Дундаж оноо. Энэ багана нэмэгдэхээс өмнөх сессүүдэд null. */
     avg_score: number | null;
+    /** GPS-ээр тооцсон зай, хурд. Хурд хэмжээгүй сессэд null. */
+    distance_km: number | null;
+    avg_speed_kmh: number | null;
+    max_speed_kmh: number | null;
 };
 
 export type LocalFatigueEvent = {
@@ -26,7 +30,7 @@ export type LocalFatigueEvent = {
 
 export function getLocalDatabase(): Promise<unknown>;
 export function createLocalSession(driverId?: number): Promise<{ clientId: string; driverId: number; startedAt: string }>;
-export function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number }): Promise<void>;
+export function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number; distanceKm?: number | null; avgSpeedKmh?: number | null; maxSpeedKmh?: number | null }): Promise<void>;
 export function addLocalFatigueEvent(event: Omit<LocalFatigueEvent, 'synced_at'>): Promise<void>;
 export function getLocalSessions(): Promise<LocalSession[]>;
 export function getLocalSessionEvents(sessionClientId: string): Promise<LocalFatigueEvent[]>;

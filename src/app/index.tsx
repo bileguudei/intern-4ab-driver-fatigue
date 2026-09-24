@@ -54,7 +54,11 @@ async function saveFatigueEvents(
       level: event.type === "fatigue_warning" ? "warning" : "critical",
       fatigue_score: null,
       event_at: new Date(event.occurredAt).toISOString(),
-      metadata_json: null,
+      // Явдал гарах үеийн хурд. Серверт metadata болж хадгалагдана.
+      metadata_json:
+        event.speedKmh === undefined
+          ? null
+          : JSON.stringify({ speedKmh: event.speedKmh }),
     });
   }
 }
@@ -170,6 +174,9 @@ export default function GuardApp() {
         avgScore: data.avgScore,
         warningCount: data.warningCount,
         criticalEventCount: data.criticalCount,
+        distanceKm: typeof data.avgSpeedKmh === "number" ? (data.distanceKm ?? 0) : null,
+        avgSpeedKmh: data.avgSpeedKmh ?? null,
+        maxSpeedKmh: data.maxSpeedKmh ?? null,
       });
       await saveFatigueEvents(engine, clientId, savedEventIds.current);
       // Дараагийн аяллын калибрацийн үеийн явдлыг энэ сесст бичихгүй.
