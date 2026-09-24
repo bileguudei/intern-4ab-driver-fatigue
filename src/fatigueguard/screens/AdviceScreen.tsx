@@ -15,9 +15,11 @@ const API_BASE_URL =
 
 export function AdviceScreen({
   summary,
+  sessionClientId,
   onBack,
 }: {
   summary: SessionSummary;
+  sessionClientId: string | null;
   onBack: () => void;
 }) {
   const [advice, setAdvice] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function AdviceScreen({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            sessionId: `session-${Date.now()}`,
+            sessionId: sessionClientId,
             driverId: 1,
             fatigueScore: summary.maxScore,
             averageFatigueScore: summary.avgScore,
@@ -47,9 +49,9 @@ export function AdviceScreen({
               1,
               Math.round(summary.durationSeconds / 60),
             ),
-            prolongedEyeClosureCount: Math.max(0, summary.criticalCount),
-            headNodCount: Math.max(0, summary.warningCount),
-            perclos: 0.21,
+            prolongedEyeClosureCount: summary.longClosureCount ?? 0,
+            headNodCount: summary.quickNodCount ?? 0,
+            perclos: summary.perclos ?? null,
           }),
         });
 
@@ -88,7 +90,7 @@ export function AdviceScreen({
     return () => {
       isMounted = false;
     };
-  }, [summary]);
+  }, [summary, sessionClientId]);
 
   return (
     <View style={styles.screen}>

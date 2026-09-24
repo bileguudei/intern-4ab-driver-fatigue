@@ -25,6 +25,7 @@ interface VectorizeBinding {
       metadata?: Record<string, unknown>;
     }>,
   ): Promise<unknown>;
+  deleteByIds(ids: string[]): Promise<unknown>;
 }
 
 export interface Env {
@@ -461,6 +462,31 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
     const object = await bucket.get(fileKey);
     if (!object) throw new Error("Knowledge document not found in R2");
     text = await object.text();
+  }
+
+  // Ижил source-той хуучин баримт байвал эхлээд түүнийг хасна — эс тэгвээс
+  // шинэчилж дахин ingest хийх бүрд хуучин, шинэ chunk хамт давхцаж үлдэнэ.
+  const staleDocuments = await env.DB.prepare(
+    "SELECT id FROM rag_documents WHERE source = ?",
+  )
+    .bind(source)
+    .all<{ id: string }>();
+  for (const stale of staleDocuments.results) {
+    const staleChunks = await env.DB.prepare(
+      "SELECT vector_id FROM rag_chunks WHERE document_id = ?",
+    )
+      .bind(stale.id)
+      .all<{ vector_id: string }>();
+    const staleVectorIds = staleChunks.results.map((row) => row.vector_id);
+    if (staleVectorIds.length > 0 && env.VECTORIZE) {
+      await env.VECTORIZE.deleteByIds(staleVectorIds);
+    }
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM rag_chunks WHERE document_id = ?").bind(
+        stale.id,
+      ),
+      env.DB.prepare("DELETE FROM rag_documents WHERE id = ?").bind(stale.id),
+    ]);
   }
 
   const documentId = crypto.randomUUID();
