@@ -40,7 +40,7 @@ export function computeScore(eyes: EyeState, head: HeadState, yawn: YawnState): 
 }
 
 export type LevelContext = Readonly<{
-  /** Нүүр харагдаж байвал null, алга бол хэдэн мс болсон. */
+  /** Нүүр харагдаж байвал null, алга эсвэл хажуу тийш эргэсэн бол хэдэн мс болсон. */
   faceMissingMs?: number | null;
   /** Машин зогсож байгаа эсэх. Хурд тодорхойгүй бол false байх ёстой. */
   stationary?: boolean;
