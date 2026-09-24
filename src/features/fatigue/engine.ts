@@ -229,7 +229,7 @@ export function createFatigueEngine({
       if (state.calibration === 'done' && state.baseline !== null) {
         let currentBaseline = baselineTracker?.current() ?? state.baseline;
         if (baselineTracker !== null) {
-          const adjusted = baselineTracker.update(observation);
+          const adjusted = baselineTracker.update(observation, { stationary: state.stationary });
           currentBaseline = adjusted;
           if (Math.abs(adjusted.headPitch - state.baseline.headPitch) >= BASELINE_PUBLISH_DELTA_DEG) {
             update({ baseline: adjusted });
