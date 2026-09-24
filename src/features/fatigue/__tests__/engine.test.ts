@@ -415,6 +415,68 @@ describe('createFatigueEngine', () => {
     expect(summary.perclos).toBeGreaterThan(0);
   });
 
+  describe('толь руу харах', () => {
+    const calibrated = (yaw = 0) => {
+      const { engine } = setup();
+      engine.onCameraStatus('running');
+      engine.startCalibration();
+      for (let t = 0; t <= 10_000; t += 50) {
+        engine.accept({ ...observation(true, t), headPose: { pitch: 3, yaw, roll: 0 } });
+      }
+      return engine;
+    };
+    /** 1.2 сек-ийн толь харалт: толгой 40° эргэж, бага зэрэг доошилж, eyeBlink өснө. */
+    const glance = (t: number, start: number, side: 1 | -1) => {
+      const s = Math.sin((Math.PI * (t - start)) / 1_200);
+      return {
+        ...observation(true, t),
+        leftBlink: 0.1 + 0.6 * s,
+        rightBlink: 0.1 + 0.6 * s,
+        headPose: { pitch: 3 + 12 * s, yaw: side * 40 * s, roll: 0 },
+      };
+    };
+
+    it('хоёр тийш толь руу харахад ядаргаа гэж илрүүлэхгүй', () => {
+      const engine = calibrated();
+      const levels = new Set<string>();
+      let t = 10_050;
+      for (const [start, side] of [[12_000, -1], [16_000, 1], [20_000, -1], [24_000, 1]] as const) {
+        for (; t < start; t += 50) engine.accept(observation(true, t));
+        for (; t < start + 1_200; t += 50) {
+          engine.accept(glance(t, start, side));
+          levels.add(engine.getState().level);
+        }
+      }
+      for (; t < 30_000; t += 50) {
+        engine.accept(observation(true, t));
+        levels.add(engine.getState().level);
+      }
+
+      expect([...levels]).toEqual(['normal']);
+      expect(engine.getEvents()).toHaveLength(0);
+      expect(engine.finish()).toMatchObject({ quickNodCount: 0, longClosureCount: 0 });
+    });
+
+    it('хажуу тийш удаан эргэвэл нүүр алга болсонтой адил 2 сек-д warning, 3 сек-д critical болно', () => {
+      const engine = calibrated();
+      const turned = (t: number) => ({ ...observation(true, t), headPose: { pitch: 3, yaw: 40, roll: 0 } });
+      for (let t = 10_050; t <= 12_000; t += 50) engine.accept(turned(t));
+      expect(engine.getState().level).toBe('normal');
+      engine.accept(turned(12_050));
+      expect(engine.getState().level).toBe('warning');
+      for (let t = 12_100; t <= 13_050; t += 50) engine.accept(turned(t));
+      expect(engine.getState().level).toBe('critical');
+    });
+
+    it('утас хажуу талд байрласан ч калибрацийн чиглэлд нүд аньвал critical илрүүлнэ', () => {
+      const engine = calibrated(15);
+      for (let t = 10_050; t <= 12_100; t += 50) {
+        engine.accept({ ...observation(true, t), leftBlink: 0.8, rightBlink: 0.8, headPose: { pitch: 3, yaw: 15, roll: 0 } });
+      }
+      expect(engine.getState().level).toBe('critical');
+    });
+  });
+
   describe('хурд', () => {
     const calibrated = () => {
       const context = setup();
