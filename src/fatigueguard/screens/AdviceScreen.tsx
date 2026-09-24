@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { driverIdentity } from "@/features/driver";
 import { needsAiAdvice } from "@/features/fatigue/advice-gate";
 import { colors } from "../theme";
 import type { SessionSummary } from "../types";
@@ -39,6 +40,8 @@ export function AdviceScreen({
       setError(null);
 
       try {
+        // Бүртгэл амжаагүй бол null — сервер зөвлөгөө өгөөд түүхэнд бичихгүй.
+        const driverId = await driverIdentity.ensureRegistered();
         const response = await fetch(`${API_BASE_URL}/api/rag/advice`, {
           method: "POST",
           headers: {
@@ -47,7 +50,7 @@ export function AdviceScreen({
           },
           body: JSON.stringify({
             sessionId: sessionClientId,
-            driverId: 1,
+            driverId,
             fatigueScore: summary.maxScore,
             averageFatigueScore: summary.avgScore,
             maxFatigueScore: summary.maxScore,
