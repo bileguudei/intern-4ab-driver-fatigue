@@ -53,6 +53,11 @@ describe('calibrate', () => {
     expect(calibrate([...frames(70, 0.2), ...lost])).toBeNull();
   });
 
+  it('жолоочийн хэвийн хэвтээ чиглэлийг суурь болгон хадгална', () => {
+    const offAxis = Array.from({ length: 150 }, () => frame(0.2, 0.26, 4, true, 12));
+    expect(calibrate(offAxis)?.headYaw).toBe(12);
+  });
+
   it('хажуу тийш харсан калибрацийг хүлээж авахгүй', () => {
     const turned = Array.from({ length: 150 }, () => frame(0.2, 0.26, 4, true, 35));
     expect(calibrate(turned)).toBeNull();

@@ -32,6 +32,8 @@ export type Baseline = Readonly<{
   earClosed: number;
   /** Градус, эерэг = доош. */
   headPitch: number;
+  /** Градус. Калибрацийн үеийн нүүрний хэвтээ чиглэл — толь руу эргэхийг үүнээс хэмжинэ. */
+  headYaw: number;
 }>;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -66,7 +68,7 @@ export function calibrate(observations: readonly ComputerVisionObservation[]): B
       isNumber(roll) &&
       Math.abs(yaw) <= MAX_HEAD_YAW_DEG &&
       Math.abs(roll) <= MAX_HEAD_ROLL_DEG;
-    return usable ? [{ blink, ear: o.averageEar as number, pitch: pitch as number }] : [];
+    return usable ? [{ blink, ear: o.averageEar as number, pitch: pitch as number, yaw: yaw as number }] : [];
   });
   if (
     samples.length < MIN_SAMPLES ||
@@ -82,17 +84,28 @@ export function calibrate(observations: readonly ComputerVisionObservation[]): B
   // тэр төлвийг нээлттэй baseline болгож хадгалахгүй.
   if (blinkOpen >= CLOSED_BASELINE_BLINK && earOpen < CLOSED_BASELINE_EAR) return null;
 
-  return deriveBaseline(blinkOpen, earOpen, median(samples.map((s) => s.pitch)));
+  return deriveBaseline(
+    blinkOpen,
+    earOpen,
+    median(samples.map((s) => s.pitch)),
+    median(samples.map((s) => s.yaw)),
+  );
 }
 
 /** Хэмжсэн хэвийн төлвөөс бүх fatigue босгыг нэг дүрмээр гаргана. */
-export function deriveBaseline(blinkOpen: number, earOpen: number, headPitch: number): Baseline {
+export function deriveBaseline(
+  blinkOpen: number,
+  earOpen: number,
+  headPitch: number,
+  headYaw: number,
+): Baseline {
   return {
     blinkOpen,
     blinkClosed: clamp(blinkOpen + BLINK_CLOSED_OFFSET, 0.45, 0.85),
     earOpen,
     earClosed: earOpen * EAR_CLOSED_RATIO,
     headPitch,
+    headYaw,
   };
 }
 
