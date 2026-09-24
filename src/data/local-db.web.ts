@@ -11,6 +11,10 @@ export type LocalSession = {
     synced_at: string | null;
     /** Дундаж оноо. Энэ талбар нэмэгдэхээс өмнөх сессүүдэд null. */
     avg_score: number | null;
+    /** GPS-ээр тооцсон зай, хурд. Хурд хэмжээгүй сессэд null. */
+    distance_km: number | null;
+    avg_speed_kmh: number | null;
+    max_speed_kmh: number | null;
 };
 
 export type LocalFatigueEvent = {
@@ -51,16 +55,16 @@ export async function createLocalSession(driverId = 1) {
     const store = readStore();
     const clientId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const startedAt = new Date().toISOString();
-    store.sessions.unshift({ client_id: clientId, driver_id: driverId, started_at: startedAt, ended_at: null, fatigue_score: 0, warning_count: 0, critical_event_count: 0, status: 'active', revision: 0, synced_at: null, avg_score: null });
+    store.sessions.unshift({ client_id: clientId, driver_id: driverId, started_at: startedAt, ended_at: null, fatigue_score: 0, warning_count: 0, critical_event_count: 0, status: 'active', revision: 0, synced_at: null, avg_score: null, distance_km: null, avg_speed_kmh: null, max_speed_kmh: null });
     writeStore(store);
     return { clientId, driverId, startedAt };
 }
 
-export async function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number }) {
+export async function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number; distanceKm?: number | null; avgSpeedKmh?: number | null; maxSpeedKmh?: number | null }) {
     const store = readStore();
     const session = store.sessions.find((item) => item.client_id === clientId);
     if (!session) return;
-    Object.assign(session, { ended_at: summary.endedAt, fatigue_score: summary.fatigueScore, avg_score: summary.avgScore, warning_count: summary.warningCount, critical_event_count: summary.criticalEventCount, status: 'completed', revision: session.revision + 1, synced_at: null });
+    Object.assign(session, { ended_at: summary.endedAt, fatigue_score: summary.fatigueScore, avg_score: summary.avgScore, warning_count: summary.warningCount, critical_event_count: summary.criticalEventCount, distance_km: summary.distanceKm ?? null, avg_speed_kmh: summary.avgSpeedKmh ?? null, max_speed_kmh: summary.maxSpeedKmh ?? null, status: 'completed', revision: session.revision + 1, synced_at: null });
     writeStore(store);
 }
 
@@ -71,7 +75,13 @@ export async function addLocalFatigueEvent(event: Omit<LocalFatigueEvent, 'synce
 }
 
 export async function getLocalSessions() {
-    return readStore().sessions.map((session) => ({ ...session, avg_score: session.avg_score ?? null }));
+    return readStore().sessions.map((session) => ({
+        ...session,
+        avg_score: session.avg_score ?? null,
+        distance_km: session.distance_km ?? null,
+        avg_speed_kmh: session.avg_speed_kmh ?? null,
+        max_speed_kmh: session.max_speed_kmh ?? null,
+    }));
 }
 
 /** local-db.native.ts-ийн адил: дуусаагүй үлдсэн сессийг явдлуудаар нь дуусгана. */

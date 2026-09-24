@@ -5,13 +5,29 @@ import { type BaselineTracker, createBaselineTracker } from './baseline-tracker'
 import { type Baseline, calibrate, CALIBRATION_MS } from './calibration';
 import { createEyeTracker } from './eyes';
 import { createHeadTracker } from './head';
-import { computeScore, CRITICAL_CLOSURE_MS, type FatigueLevel, nextLevel } from './score';
+import { computeScore, CRITICAL_CLOSURE_MS, type FatigueLevel, HIGH_SPEED_KMH, nextLevel } from './score';
 import { createYawnTracker } from './yawn';
 
 export type { FatigueLevel };
 
 /** Түвшин өсөх үед л явдал бүртгэхийн тулд эрэмбэлнэ. */
 const LEVEL_RANK: Record<FatigueLevel, number> = { normal: 0, warning: 1, critical: 2 };
+
+/**
+ * Машин зогссон эсэх, км/ц. Зогсож байхад GPS хэдэн км/ц хэлбэлздэг тул
+ * орох, гарах босгыг салгав.
+ */
+const STATIONARY = { enterKmh: 5, exitKmh: 10 };
+/**
+ * Тасралтгүй жолоодлого: ийм хугацааны дараа завсарлага сануулж, амрах хүртэл
+ * давтана. Ийм удаан зогсвол амарсан гэж үзнэ. Богино зогсолт (гэрлэн дохио,
+ * түгжрэл) амралт биш тул жолоодлогын хугацаанд орно.
+ */
+const BREAK = { afterMs: 2 * 60 * 60_000, repeatMs: 30 * 60_000, restMs: 15 * 60_000 };
+/** GPS тасарвал хоёр хэмжилтийн хоорондох хугацааг ийм хэмжээгээр хязгаарлана. */
+const MAX_SPEED_GAP_MS = 5_000;
+/** Энгийн анивчилтаас удаан анилтыг л нүдээ аньж явсан зайд тооцно. */
+const BLIND_CLOSURE_MS = 500;
 
 /** Аяллын дүн болон AI зөвлөгөөнд хэрэглэх хэмжүүрүүд. */
 const createSession = (startedAt: number) => ({
@@ -24,6 +40,11 @@ const createSession = (startedAt: number) => ({
   inLongClosure: false,
   quickNods: 0,
   lastQuickNods: 0,
+  distanceM: 0,
+  movingMs: 0,
+  maxSpeedKmh: null as number | null,
+  /** Нүд аньсан хугацаанд машин явсан хамгийн их зай. */
+  maxBlindDistanceM: 0,
 });
 
 /** Толгой ийм их бөхийсөн үед eyeBlink-ийг EAR-аар давхар батална. */
@@ -38,6 +59,8 @@ export type FatigueEvent = Readonly<{
   /** Unix мс — серверт хадгалагдана. */
   occurredAt: number;
   type: 'camera_stopped' | 'camera_resumed' | 'fatigue_warning' | 'fatigue_critical';
+  /** Явдал гарах үеийн хурд. Хурд тодорхойгүй бол байхгүй. */
+  speedKmh?: number;
 }>;
 
 export type FatigueEngineState = Readonly<{
@@ -50,6 +73,12 @@ export type FatigueEngineState = Readonly<{
   calibrationProgress: number;
   calibrationPhase: 'eye' | 'head';
   baseline: Baseline | null;
+  /** Машин зогсож байгаа эсэх. Хурд тодорхойгүй бол false. */
+  stationary: boolean;
+  /** Тасралтгүй удаан жолоодсон тул завсарлага авах хэрэгтэй. */
+  breakDue: boolean;
+  /** Энэ аялалд завсарлагын сануулга хэдэн удаа гарсан. */
+  breakReminders: number;
 }>;
 
 export type FatigueEngineOptions = { now?: () => number; createId?: () => string };
@@ -69,6 +98,7 @@ export function createFatigueEngine({
   const events: FatigueEvent[] = [];
   let state: FatigueEngineState = {
     level: 'normal', score: 0, cameraStatus: 'idle', monitoring: false, calibration: 'idle', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null,
+    stationary: false, breakDue: false, breakReminders: 0,
   };
   let samples: ComputerVisionObservation[] = [];
   let lastCalibrationTimestamp: number | null = null;
@@ -79,6 +109,20 @@ export function createFatigueEngine({
   let session = createSession(now());
   /** Калибрацийн дараа нүүр тасралтгүй алга болсон эхний фрэймийн цаг. */
   let faceMissingSince: number | null = null;
+  /** Сүүлийн хурд (км/ц) ба түүнийг авсан Unix цаг. Тодорхойгүй бол null. */
+  let speedKmh: number | null = null;
+  let lastSpeedAt: number | null = null;
+  /**
+   * Тасралтгүй жолоодлого эхэлсэн цаг. GPS байхгүй бол аялал эхэлснээс
+   * тоолно — хурд мэдэхгүй үед явж байна гэж үзэх нь аюулгүй.
+   */
+  let drivingSince = now();
+  /**
+   * Машин зогссон цаг. Дараа нь GPS тасрах, апп ард гарахад зогсолтыг
+   * үргэлжилсэн гэж үзнэ — амралтын газарт утсаа авч явсан ч амралт тоологдоно.
+   */
+  let stoppedSince: number | null = null;
+  let nextBreakAtMs = BREAK.afterMs;
 
   const update = (next: Partial<FatigueEngineState>) => {
     const changed = (Object.keys(next) as (keyof FatigueEngineState)[]).some((key) => next[key] !== state[key]);
@@ -88,7 +132,20 @@ export function createFatigueEngine({
   };
 
   const record = (type: FatigueEvent['type']) => {
-    events.push({ id: createId(), occurredAt: now(), type });
+    events.push({ id: createId(), occurredAt: now(), type, ...(speedKmh !== null && { speedKmh }) });
+  };
+
+  const checkBreak = (t: number) => {
+    // Хангалттай амарсан бол дахин хөдлөх хүртэл тоолуурыг тэглэсээр байна.
+    if (stoppedSince !== null && t - stoppedSince >= BREAK.restMs) {
+      drivingSince = t;
+      nextBreakAtMs = BREAK.afterMs;
+    }
+    const drivingMs = t - drivingSince;
+    const remind = drivingMs >= nextBreakAtMs;
+    // Апп удаан ард байсан бол алгассан сануулгуудыг дараалуулан дуугаргахгүй.
+    if (remind) nextBreakAtMs = drivingMs + BREAK.repeatMs;
+    update({ breakDue: drivingMs >= BREAK.afterMs, breakReminders: state.breakReminders + (remind ? 1 : 0) });
   };
 
   const resetCalibrationWindow = () => {
@@ -111,8 +168,13 @@ export function createFatigueEngine({
     const ignoreEyes = yawnState.open;
     const eyeState = ignoreEyes ? { ...eyeUpdate, closureMs: 0 } : eyeUpdate;
     const score = computeScore(eyeState, headState, yawnState);
-    const level = nextLevel(state.level, score, eyeState, headState, yawnState, faceMissingMs);
+    const level = nextLevel(state.level, score, eyeState, headState, yawnState, {
+      faceMissingMs,
+      stationary: state.stationary,
+      highSpeed: speedKmh !== null && speedKmh >= HIGH_SPEED_KMH,
+    });
     const longClosure = eyeState.closureMs >= CRITICAL_CLOSURE_MS;
+    const blindDistanceM = speedKmh === null || eyeState.closureMs < BLIND_CLOSURE_MS ? 0 : (speedKmh / 3.6) * (eyeState.closureMs / 1000);
     session = {
       ...session,
       scoreSum: session.scoreSum + score,
@@ -125,6 +187,7 @@ export function createFatigueEngine({
       // headState.quickNods нь сүүлийн 60 сек-ийн тоо тул зөвхөн өсөлтийг нэмнэ.
       quickNods: session.quickNods + Math.max(0, headState.quickNods - session.lastQuickNods),
       lastQuickNods: headState.quickNods,
+      maxBlindDistanceM: Math.max(session.maxBlindDistanceM, blindDistanceM),
     };
     // Critical-аас warning руу буурах нь шинэ анхааруулга биш. Өмнө нь үүнийг
     // fatigue_warning гэж бүртгэдэг байсан тул анхааруулгын тоо хөөрөгддөг байв.
@@ -148,6 +211,7 @@ export function createFatigueEngine({
           }
         }
         assess(observation, currentBaseline);
+        checkBreak(now());
       }
       if (state.calibration !== 'running') return;
 
@@ -188,7 +252,42 @@ export function createFatigueEngine({
       head = createHeadTracker();
       yawn = createYawnTracker();
       session = createSession(now());
-      update({ calibration: 'running', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null, level: 'normal', score: 0 });
+      speedKmh = null;
+      lastSpeedAt = null;
+      drivingSince = now();
+      stoppedSince = null;
+      nextBreakAtMs = BREAK.afterMs;
+      update({
+        calibration: 'running', calibrationProgress: 0, calibrationPhase: 'eye', baseline: null, level: 'normal', score: 0,
+        stationary: false, breakDue: false, breakReminders: 0,
+      });
+    },
+
+    /**
+     * GPS-ийн хурдыг (км/ц) авна. Тодорхойгүй (зөвшөөрөлгүй, дохио тасарсан) бол
+     * null. Зогссон эсэх, явсан зай, тасралтгүй жолоодсон хугацааг тооцно.
+     */
+    onSpeed(kmh: number | null) {
+      const t = now();
+      if (state.calibration !== 'done') return;
+      // Өмнөх хурдаар өнгөрсөн хугацааг тооцно. GPS удаан тасарсан бол зайг таахгүй.
+      const dt = lastSpeedAt === null ? 0 : Math.min(t - lastSpeedAt, MAX_SPEED_GAP_MS);
+      if (speedKmh !== null && dt > 0) {
+        session = {
+          ...session,
+          distanceM: session.distanceM + (speedKmh / 3.6) * (dt / 1000),
+          movingMs: session.movingMs + (state.stationary ? 0 : dt),
+        };
+      }
+      speedKmh = kmh;
+      lastSpeedAt = kmh === null ? null : t;
+      if (kmh !== null) session = { ...session, maxSpeedKmh: Math.max(session.maxSpeedKmh ?? 0, kmh) };
+
+      const stationary = kmh !== null && (state.stationary ? kmh < STATIONARY.exitKmh : kmh <= STATIONARY.enterKmh);
+      if (stationary) stoppedSince ??= t;
+      else if (kmh !== null) stoppedSince = null;
+      update({ stationary });
+      checkBreak(t);
     },
 
     /** Жолоодлого дуусгах — UI-ийн SessionSummary хэлбэрээр. */
@@ -211,6 +310,13 @@ export function createFatigueEngine({
         longClosureCount: session.longClosures,
         /** Жижиг, хурдан толгой дохилтын тоо. */
         quickNodCount: session.quickNods,
+        /** GPS-ээр тооцсон явсан зай. */
+        distanceKm: Math.round(session.distanceM / 100) / 10,
+        /** Явж байх үеийн дундаж хурд. Хурд хэмжээгүй бол null. */
+        avgSpeedKmh: session.movingMs > 0 ? Math.round((session.distanceM / session.movingMs) * 3_600) : null,
+        maxSpeedKmh: session.maxSpeedKmh,
+        /** Нүд аньсан хугацаанд машин явсан хамгийн их зай. */
+        maxBlindDistanceM: Math.round(session.maxBlindDistanceM),
       };
     },
 

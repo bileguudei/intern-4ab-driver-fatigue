@@ -20,6 +20,12 @@ const EXIT = { warning: 30, critical: 55 };
  * дохио болно. Замаас удаан харахгүй байх нь ч аюултай. Утгыг багаараа тааруулна.
  */
 export const FACE_MISSING = { warningMs: 2_000, criticalMs: 3_000 };
+/**
+ * Энэ хурдаас дээш машин секундэд 22 м-ээс илүү явдаг тул нүд аних, нүүр алга
+ * болох дохиог эрт өгнө (босгыг гуравны хоёр болгоно). Туршилтаар тааруулна.
+ */
+export const HIGH_SPEED_KMH = 80;
+const HIGH_SPEED_FACTOR = 2 / 3;
 
 const unit = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -33,8 +39,28 @@ export function computeScore(eyes: EyeState, head: HeadState, yawn: YawnState): 
   return Math.round(perclos + closure + nods + droop + yawns);
 }
 
-/** `faceMissingMs` — нүүр харагдаж байвал null, алга бол хэдэн мс болсон. */
-export function nextLevel(previous: FatigueLevel, score: number, eyes: EyeState, head: HeadState, yawn: YawnState, faceMissingMs: number | null = null): FatigueLevel {
+export type LevelContext = Readonly<{
+  /** Нүүр харагдаж байвал null, алга бол хэдэн мс болсон. */
+  faceMissingMs?: number | null;
+  /** Машин зогсож байгаа эсэх. Хурд тодорхойгүй бол false байх ёстой. */
+  stationary?: boolean;
+  /** HIGH_SPEED_KMH-аас хурдан явж байгаа эсэх. */
+  highSpeed?: boolean;
+}>;
+
+export function nextLevel(
+  previous: FatigueLevel,
+  score: number,
+  eyes: EyeState,
+  head: HeadState,
+  yawn: YawnState,
+  { faceMissingMs = null, stationary = false, highSpeed = false }: LevelContext = {},
+): FatigueLevel {
+  // Машин зогсож байхад мөргөлдөх аюулгүй. Утас, самбар руу харах зэрэг хуурамч
+  // дохиог хасаж, зөвхөн удаан анилтад зөөлөн анхааруулга өгнө.
+  if (stationary) return eyes.closureMs >= CRITICAL_CLOSURE_MS ? 'warning' : 'normal';
+
+  const urgency = highSpeed ? HIGH_SPEED_FACTOR : 1;
   const criticalBar = previous === 'critical' ? EXIT.critical : ENTER.critical;
   const warningBar = previous === 'normal' ? ENTER.warning : EXIT.warning;
   const droopThreshold = previous === 'critical' ? CRITICAL_DROOP.exitDeg : CRITICAL_DROOP.enterDeg;
@@ -48,10 +74,10 @@ export function nextLevel(previous: FatigueLevel, score: number, eyes: EyeState,
   const holding = faceMissingMs !== null;
   const missingMs = faceMissingMs ?? 0;
   const matched = {
-    critical: score >= criticalBar || eyes.closureMs >= CRITICAL_CLOSURE_MS || droop ||
-      missingMs >= FACE_MISSING.criticalMs || (holding && previous === 'critical'),
+    critical: score >= criticalBar || eyes.closureMs >= CRITICAL_CLOSURE_MS * urgency || droop ||
+      missingMs >= FACE_MISSING.criticalMs * urgency || (holding && previous === 'critical'),
     warning: score >= warningBar || head.quickNods >= 2 || yawn.yawns >= YAWN_WARNING ||
-      missingMs >= FACE_MISSING.warningMs || (holding && previous === 'warning'),
+      missingMs >= FACE_MISSING.warningMs * urgency || (holding && previous === 'warning'),
   };
   return (['critical', 'warning'] as const).find((level) => matched[level]) ?? 'normal';
 }

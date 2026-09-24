@@ -51,6 +51,15 @@
       ],
       "expo-sqlite",
       "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Жолоодлогын үед хурдыг харуулахын тулд байршлыг ашиглана.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false
+        }
+      ],
       "./plugins/with-local-notifications-only",
       [
         "expo-notifications",
