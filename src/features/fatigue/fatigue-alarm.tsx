@@ -8,6 +8,7 @@ import { createBackgroundAlert } from './background-alert';
 import { createBreakAlert } from './break-alert';
 import type { FatigueEngine } from './engine';
 import { createStoppedReminders, notifyMonitoringStopped } from './stopped-reminders';
+import { alertSettings } from './use-alert-settings';
 
 const CRITICAL_VIBRATION = [0, 500, 300];
 
@@ -31,14 +32,24 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
       if (criticalOn && !status.playing) critical.play();
     });
 
+    // Тохиргоог дохио гарах мөчид уншина — жолоодлогын үед өөрчилсөн ч шууд хэрэгжинэ.
+    const playWarningSound = () => {
+      const { sound, volume } = alertSettings.get();
+      if (!sound) return;
+      warning.volume = volume / 100;
+      warning.seekTo(0);
+      warning.play();
+    };
+
     const onState = createAlarmController({
       playWarning: () => {
-        warning.seekTo(0);
-        warning.play();
-        Vibration.vibrate(400);
+        playWarningSound();
+        if (alertSettings.get().vibration) Vibration.vibrate(400);
       },
+      // Аюултай дохио тохиргооноос үл хамааран бүрэн дуугарч, чичирнэ.
       startCritical: () => {
         criticalOn = true;
+        critical.volume = 1;
         critical.seekTo(0);
         critical.play();
         Vibration.vibrate(CRITICAL_VIBRATION, true);
@@ -54,8 +65,7 @@ export function FatigueAlarm({ engine }: { engine: FatigueEngine }) {
     Notifications.requestPermissionsAsync();
     const onBackground = createBackgroundAlert({
       alertNow: () => {
-        warning.seekTo(0);
-        warning.play();
+        playWarningSound();
         void notifyMonitoringStopped();
       },
       scheduleReminders: () => {
