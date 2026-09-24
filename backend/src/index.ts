@@ -491,13 +491,14 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
   }
 
   const documentId = crypto.randomUUID();
-  await env.DB.prepare(
-    "INSERT INTO rag_documents (id, title, source, file_key, category) VALUES (?, ?, ?, ?, ?)",
-  )
-    .bind(documentId, title, source, fileKey, category)
-    .run();
-
   const chunks = chunkText(text, { chunkSize: 800, overlap: 120 });
+  if (chunks.length === 0)
+    throw new Error("Document text is empty after chunking");
+
+  // Эмбеддинг тооцоолсны дараа л D1/Vectorize-д бичнэ — эс тэгвээс Gemini
+  // дуудлага бүтэлгүйтвэл агуулгагүй "сүнс" баримт rag_documents-д үлддэг.
+  const chunkEmbeddings = await embedTexts(env, chunks);
+
   const vectors: Array<{
     id: string;
     values: number[];
@@ -513,8 +514,6 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
     content: string;
     vector_id: string;
   }> = [];
-
-  const chunkEmbeddings = await embedTexts(env, chunks);
 
   for (let index = 0; index < chunks.length; index += 1) {
     const content = chunks[index];
@@ -547,6 +546,12 @@ async function ingestKnowledgeDocument(request: Request, env: Env) {
       vector_id: vectorId,
     });
   }
+
+  await env.DB.prepare(
+    "INSERT INTO rag_documents (id, title, source, file_key, category) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(documentId, title, source, fileKey, category)
+    .run();
 
   if (vectors.length > 0) {
     await env.VECTORIZE.upsert(vectors);
