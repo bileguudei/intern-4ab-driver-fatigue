@@ -350,3 +350,113 @@ describe("Advice API", () => {
     expect(json.error).toContain("Gemini");
   });
 });
+
+describe("Advice generation fallback", () => {
+  const env = () =>
+    ({
+      DB: makeDb(),
+      GEMINI_API_KEY: "test-key",
+      APP_API_KEY: "test-key",
+      VECTORIZE: makeVectorize(),
+    }) as any;
+
+  const requestAdvice = () =>
+    worker.fetch(
+      new Request("https://example.com/api/advice", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer test-key",
+        },
+        body: JSON.stringify({ fatigueScore: 82 }),
+      }),
+      env(),
+    );
+
+  function mockGeneration(
+    respond: (model: string) => Response | Promise<Response>,
+  ) {
+    const models: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes(":batchEmbedContents")) {
+        return mockGeminiFetch()(input, init);
+      }
+      const model = url.match(/models\/([^:]+):generateContent/)?.[1] ?? "";
+      models.push(model);
+      return respond(model);
+    }) as typeof fetch;
+    return models;
+  }
+
+  const answer = (parts: Array<{ text: string; thought?: boolean }>) =>
+    new Response(JSON.stringify({ candidates: [{ content: { parts } }] }), {
+      status: 200,
+    });
+
+  it("falls back to the next model when one is overloaded", async () => {
+    const models = mockGeneration((model) =>
+      model === "gemini-3.6-flash"
+        ? new Response("{}", { status: 503 })
+        : answer([{ text: "Түр зогсоод амраарай." }]),
+    );
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as { advice: string }).advice).toBe(
+      "Түр зогсоод амраарай.",
+    );
+    expect(models).toEqual(["gemini-3.6-flash", "gemini-flash-lite-latest"]);
+  });
+
+  it("falls back when a model times out", async () => {
+    const models = mockGeneration((model) => {
+      if (model === "gemini-3.6-flash") {
+        throw new DOMException("timed out", "TimeoutError");
+      }
+      return answer([{ text: "Амраарай." }]);
+    });
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(201);
+    expect(models).toEqual(["gemini-3.6-flash", "gemini-flash-lite-latest"]);
+  });
+
+  it("hides the model's thought parts from the driver", async () => {
+    mockGeneration(() =>
+      answer([
+        { text: "Role: driver-safety assistant...", thought: true },
+        { text: "Анхааруулга! Түр зогсоорой." },
+      ]),
+    );
+
+    const response = await requestAdvice();
+
+    expect(((await response.json()) as { advice: string }).advice).toBe(
+      "Анхааруулга! Түр зогсоорой.",
+    );
+  });
+
+  it("reports an error only after every model fails", async () => {
+    const models = mockGeneration(() => new Response("{}", { status: 503 }));
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(500);
+    expect(((await response.json()) as { error: string }).error).toContain(
+      "all models",
+    );
+    expect(models).toHaveLength(3);
+  });
+
+  it("does not retry on a non-transient error such as a bad API key", async () => {
+    const models = mockGeneration(() => new Response("{}", { status: 403 }));
+
+    const response = await requestAdvice();
+
+    expect(response.status).toBe(500);
+    expect(models).toEqual(["gemini-3.6-flash"]);
+  });
+});

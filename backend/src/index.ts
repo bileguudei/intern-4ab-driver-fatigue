@@ -50,7 +50,19 @@ const corsHeaders = {
 
 const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
 const GEMINI_EMBEDDING_DIMENSIONS = 768;
-const GEMINI_LLM_MODEL = "gemini-flash-lite-latest";
+const GEMINI_EMBED_TIMEOUT_MS = 15_000;
+// Үнэгүй түвшинд загварууд ээлжлэн 503 өгч эсвэл гацдаг тул дарааллаар оролдоно.
+// Хурдан бүтэлгүйтдэг загварыг удаан ч найдвартай gemma-гаас өмнө тавив.
+const GEMINI_LLM_MODELS: ReadonlyArray<{
+  model: string;
+  timeoutMs: number;
+  thinkingLevel?: "minimal";
+}> = [
+  { model: "gemini-3.6-flash", timeoutMs: 20_000, thinkingLevel: "minimal" },
+  { model: "gemini-flash-lite-latest", timeoutMs: 10_000 },
+  { model: "gemma-4-26b-a4b-it", timeoutMs: 30_000 },
+];
+const RETRYABLE_GEMINI_STATUSES = new Set([429, 500, 502, 503, 504]);
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_EMBED_BATCH_SIZE = 100;
 const DEFAULT_RAG_TOP_K = 5;
@@ -75,6 +87,7 @@ async function embedTexts(env: Env, texts: string[]): Promise<number[][]> {
             outputDimensionality: GEMINI_EMBEDDING_DIMENSIONS,
           })),
         }),
+        signal: AbortSignal.timeout(GEMINI_EMBED_TIMEOUT_MS),
       },
     );
     if (!res.ok) {
@@ -102,29 +115,54 @@ async function generateAdviceText(
   userPrompt: string,
 ): Promise<string | null> {
   if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const res = await fetch(
-    `${GEMINI_API_BASE}/models/${GEMINI_LLM_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      }),
-    },
-  );
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Gemini generation request failed (${res.status}): ${errText}`);
+  const failures: string[] = [];
+  for (const { model, timeoutMs, thinkingLevel } of GEMINI_LLM_MODELS) {
+    let res: Response;
+    try {
+      res = await fetch(
+        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            ...(thinkingLevel
+              ? { generationConfig: { thinkingConfig: { thinkingLevel } } }
+              : {}),
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        },
+      );
+    } catch (error) {
+      failures.push(`${model}: ${error instanceof Error ? error.name : "fetch failed"}`);
+      continue;
+    }
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      if (RETRYABLE_GEMINI_STATUSES.has(res.status)) {
+        failures.push(`${model}: ${res.status}`);
+        continue;
+      }
+      throw new Error(`Gemini generation request failed (${res.status}): ${errText}`);
+    }
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      }>;
+    };
+    // Зарим загвар (gemma) дотоод бодлоо thought: true хэсэг болгон буцаадаг —
+    // үүнийг жолоочид харуулахгүй.
+    const text = data.candidates?.[0]?.content?.parts
+      ?.filter((part) => !part.thought)
+      .map((part) => part.text ?? "")
+      .join("")
+      .trim();
+    return text && text.length > 0 ? text : null;
   }
-  const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text = data.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text ?? "")
-    .join("")
-    .trim();
-  return text && text.length > 0 ? text : null;
+  throw new Error(
+    `Gemini generation failed on all models (${failures.join("; ")})`,
+  );
 }
 
 function response(
