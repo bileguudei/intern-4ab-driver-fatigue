@@ -171,6 +171,15 @@ export async function getLocalSessions() {
     return database.getAllAsync<LocalSession>(`SELECT ${SESSION_COLUMNS} FROM driving_sessions ORDER BY started_at DESC`);
 }
 
+/** Нэг жолоодлогын явдлуудыг цагийн дарааллаар — Түүхийн дэлгэрэнгүйд. */
+export async function getLocalSessionEvents(sessionClientId: string) {
+    const database = await getLocalDatabase();
+    return database.getAllAsync<LocalFatigueEvent>(
+        'SELECT client_id, session_client_id, driver_id, level, fatigue_score, event_at, metadata_json, synced_at FROM fatigue_events WHERE session_client_id = ? ORDER BY event_at ASC',
+        sessionClientId,
+    );
+}
+
 /**
  * Апп жолоодлогын дундуур унах, хаагдахад сесс 'active' хэвээр үлдэж хэзээ ч
  * sync хийгддэггүй байсан. Апп эхлэхэд идэвхтэй жолоодлого байхгүй тул ийм

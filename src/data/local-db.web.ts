@@ -84,6 +84,12 @@ export async function getLocalSessions() {
     }));
 }
 
+export async function getLocalSessionEvents(sessionClientId: string) {
+    return readStore()
+        .events.filter((event) => event.session_client_id === sessionClientId)
+        .sort((a, b) => a.event_at.localeCompare(b.event_at));
+}
+
 /** local-db.native.ts-ийн адил: дуусаагүй үлдсэн сессийг явдлуудаар нь дуусгана. */
 export async function finalizeAbandonedSessions() {
     const store = readStore();

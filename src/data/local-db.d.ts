@@ -33,6 +33,7 @@ export function createLocalSession(driverId?: number): Promise<{ clientId: strin
 export function completeLocalSession(clientId: string, summary: { endedAt: string; fatigueScore: number; avgScore: number; warningCount: number; criticalEventCount: number; distanceKm?: number | null; avgSpeedKmh?: number | null; maxSpeedKmh?: number | null }): Promise<void>;
 export function addLocalFatigueEvent(event: Omit<LocalFatigueEvent, 'synced_at'>): Promise<void>;
 export function getLocalSessions(): Promise<LocalSession[]>;
+export function getLocalSessionEvents(sessionClientId: string): Promise<LocalFatigueEvent[]>;
 export function finalizeAbandonedSessions(): Promise<void>;
 export function getPendingSyncOperations(driverId?: number): Promise<{ sessions: LocalSession[]; events: LocalFatigueEvent[] }>;
 export function markSynced(clientIds: { sessions: string[]; events: string[] }): Promise<void>;
