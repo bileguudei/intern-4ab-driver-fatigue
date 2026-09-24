@@ -71,8 +71,11 @@ describe('createBaselineTracker', () => {
   });
 
   it('нүүр эргэсэн фрэймийг тооцохгүй', () => {
+    // 15+ сек тасралтгүй нэг чиглэл нь утас хажууд байгааг илтгэх тул yaw-ийн
+    // суурь түүнийг дагана (доорх yaw тестүүд). Түүнээс богино эргэлт pitch,
+    // yaw-ийн аль алинд нөлөөлөхгүй.
     const tracker = createBaselineTracker(CALIBRATED);
-    const { baseline } = feed(tracker, 0, 25, () => ({ headPose: { pitch: 12.6, yaw: 40, roll: 0 } }));
+    const { baseline } = feed(tracker, 0, 10, () => ({ headPose: { pitch: 12.6, yaw: 40, roll: 0 } }));
     expect(baseline).toEqual(CALIBRATED);
   });
 
@@ -145,5 +148,60 @@ describe('createBaselineTracker', () => {
     const { baseline } = feed(tracker, 0, 25, () => ({ leftBlink: 0.3, rightBlink: 0.3 }));
     expect(baseline.blinkOpen).toBe(CALIBRATED.blinkOpen);
     expect(baseline.blinkClosed).toBe(CALIBRATED.blinkClosed);
+  });
+
+  describe('толгойн хэвтээ чиглэл (yaw)', () => {
+    const atYaw = (yaw: number) => () => ({ headPose: { pitch: 8.6, yaw, roll: 0 } });
+
+    it('утас хажуу талд байхад зам руу харах чиглэлийг 2 секундээс өмнө түгжинэ', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const { baseline } = feed(tracker, 0, 1.6, atYaw(30));
+      expect(baseline.headYaw).toBeCloseTo(30, 0);
+    });
+
+    it('калибрацийн дараа утас руу харсан кадр холилдсон ч утасны чиглэлд түгжихгүй', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const phone = feed(tracker, 0, 1, atYaw(0));
+      const { baseline } = feed(tracker, phone.until, 1.6, atYaw(30));
+      expect(baseline.headYaw).toBeCloseTo(30, 0);
+    });
+
+    it('түгжсэний дараа толь харах, 10 секунд гадагш харах нь суурийг хөдөлгөхгүй', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const locked = feed(tracker, 0, 2, atYaw(0));
+      const glances = feed(tracker, locked.until, 20, (t) => atYaw(t % 5_000 < 1_000 ? -40 : 0)());
+      const { baseline } = feed(tracker, glances.until, 10, atYaw(30));
+      expect(Math.abs(baseline.headYaw)).toBeLessThan(2);
+    });
+
+    it('35°-аас хол хажуу байрлалыг анхны түгжээгүй ч урт цонхоор засна', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const { baseline } = feed(tracker, 0, 30, atYaw(40));
+      expect(baseline.headYaw).toBeCloseTo(40, 0);
+    });
+
+    it('калибрацаас 30 секундын дараа утас руу 1.5 секунд харахад суурь үсрэхгүй', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const road = feed(tracker, 0, 35, (t) => atYaw(t < 1_000 ? 40 : 40)());
+      const { baseline } = feed(tracker, road.until, 1.6, atYaw(5));
+      expect(baseline.headYaw).toBeGreaterThan(30);
+    });
+
+    it('шинэ чиглэл удаан давамгайлбал суурь түүнийг аажим дагана', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const locked = feed(tracker, 0, 2, atYaw(0));
+      const { baseline } = feed(tracker, locked.until, 40, atYaw(10));
+      expect(baseline.headYaw).toBeCloseTo(10, 0);
+    });
+
+    it('машин зогсож байхад чиглэл сурахгүй', () => {
+      const tracker = createBaselineTracker(CALIBRATED);
+      const locked = feed(tracker, 0, 2, atYaw(0));
+      let baseline = tracker.current();
+      for (let t = locked.until; t < locked.until + 40_000; t += FRAME_MS) {
+        baseline = tracker.update(frame(t, atYaw(10)()), { stationary: true });
+      }
+      expect(baseline.headYaw).toBe(0);
+    });
   });
 });

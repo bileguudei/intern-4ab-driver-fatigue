@@ -476,6 +476,18 @@ describe('createFatigueEngine', () => {
       expect(engine.getState()).toMatchObject({ level: 'critical', alertReason: 'fatigue' });
     });
 
+    it('утас самбарын голд байхад зам руу харахыг анхаарал сарнилт гэж үзэхгүй', () => {
+      // Калибрацийн үед жолооч утас (0°) руу, жолоодохдоо зам (30°) руу харна.
+      const engine = calibrated();
+      const levels = new Set<string>();
+      for (let t = 10_050; t <= 70_000; t += 50) {
+        engine.accept({ ...observation(true, t), headPose: { pitch: 3, yaw: 30, roll: 0 } });
+        levels.add(engine.getState().level);
+      }
+      expect([...levels]).toEqual(['normal']);
+      expect(engine.getEvents()).toHaveLength(0);
+    });
+
     it('хажуу тийш удаан эргэсэн дохиог ядаргаа биш, анхаарал сарнилт гэж тэмдэглэнэ', () => {
       const engine = calibrated();
       const turned = (t: number) => ({ ...observation(true, t), headPose: { pitch: 3, yaw: 40, roll: 0 } });
