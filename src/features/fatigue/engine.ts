@@ -155,13 +155,17 @@ export function createFatigueEngine({
   };
 
   const assess = (observation: ComputerVisionObservation, baseline: Baseline) => {
-    faceMissingSince = observation.faceDetected ? null : (faceMissingSince ?? observation.timestampMs);
-    const faceMissingMs = faceMissingSince === null ? null : observation.timestampMs - faceMissingSince;
     const headState = head.update(observation, baseline);
-    const yawnState = yawn.update(observation);
+    // Толь руу эргэсэн үед нүд, амны blendshape найдваргүй. Нүүр алга болсонтой
+    // адил тооцвол хуурамч анилт гарахгүй, харин удаан эргэвэл замаас харахгүй
+    // байгаа тул FACE_MISSING-ийн хугацаагаар дохио өгсөөр байна.
+    const measured = headState.turnedAway ? { ...observation, faceDetected: false } : observation;
+    faceMissingSince = measured.faceDetected ? null : (faceMissingSince ?? measured.timestampMs);
+    const faceMissingMs = faceMissingSince === null ? null : measured.timestampMs - faceMissingSince;
+    const yawnState = yawn.update(measured);
     // Толгой калибрацийн байрлалаас их зөрөхөд eyeBlink дангаараа найдваргүй.
     // Гэхдээ анилтыг бүр мөсөн хаяхгүй: EAR мөн баталбал үргэлжлүүлэн тоолно.
-    const eyeUpdate = eyes.update(observation, baseline, {
+    const eyeUpdate = eyes.update(measured, baseline, {
       requireEarConfirmation: headState.downDeg > HEAD_DOWN_EAR_CONFIRM_DEG,
     });
     // Эвшээх үед нүд аяндаа анилдаг тул зөвхөн энэ үед урт анилтыг тусгаарлана.
